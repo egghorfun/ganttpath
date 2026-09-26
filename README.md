@@ -36,6 +36,19 @@ Holiday downloads use date.nager.at, as the JavaScript app does. The built-in ho
 - Print layout on every paper size: no text runs off the page, page numbers are filled in, header and footer fields are filled in.
 - Tests that use the private CTCI fixtures run only when `GP_PRIVATE_FIXTURES` points to them. Those files are not in the repository.
 
+## Continuous build on macOS
+
+`.github/workflows/macos.yml` runs on every push. On a GitHub macOS runner it:
+1. builds everything;
+2. runs all tests;
+3. assembles `Ganttpath.app`;
+4. starts the app in a smoke-test mode.
+
+In that mode (`GP_SMOKE_DIR`, see `Sources/Ganttpath/App/SmokeTest.swift`) the app opens the sample project and shows every
+view and two dialogs, saving a picture of each. It also exports and reads back a PDF, exports a PNG, makes an edit and undoes it, then quits.
+The app zip, the pictures and the report are attached to the run as the `ganttpath-mac` artifact. If the runner has no macOS 27 SDK,
+the workflow builds with `GP_MACOS_MIN` set to the runner's SDK version.
+
 ## Known differences from the JavaScript app
 
 - JavaScript 1.3.6 wrote `[object Object]` for the project start and status date in the "# Project Settings" block of the CSV export.
