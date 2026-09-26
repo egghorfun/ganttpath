@@ -129,6 +129,7 @@ public struct BuiltRows: Sendable {
     public var matched: Set<Int>
     public var active: Bool
     public var flat: Bool
+    public init(rows: [RowItem], matched: Set<Int>, active: Bool, flat: Bool) { self.rows = rows; self.matched = matched; self.active = active; self.flat = flat }
 }
 
 public func buildRows(_ project: Project, _ sched: ScheduleResult, _ view: ViewState = ViewState()) -> BuiltRows {

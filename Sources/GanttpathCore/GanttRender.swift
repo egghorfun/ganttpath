@@ -239,7 +239,7 @@ func linkRoute(_ a: BarGeom, _ b: BarGeom, _ type: String, _ ay: Double, _ by: D
 }
 
 /// The part of a link line clear of both bars (what a click on the arrow hits).
-func middlePath(_ pts: [(Double, Double)], _ trim: Double) -> [(Double, Double)] {
+public func middlePath(_ pts: [(Double, Double)], _ trim: Double) -> [(Double, Double)] {
     guard pts.count >= 4 else { return [] }
     var p = Array(pts[1..<(pts.count - 1)])
     func sgn(_ v: Double) -> Double { v > 0 ? 1 : v < 0 ? -1 : 0 }
