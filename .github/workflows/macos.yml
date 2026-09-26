@@ -24,9 +24,13 @@ jobs:
           SDK=$(xcrun --show-sdk-version | cut -d. -f1)
           if [ "$SDK" -ge 27 ]; then echo "GP_MACOS_MIN=27.0" >> "$GITHUB_ENV"; else echo "GP_MACOS_MIN=$SDK.0" >> "$GITHUB_ENV"; fi
       - name: Build everything (library, command-line tool and the Mac app)
-        run: swift build 2>&1 | tee build.log
+        run: |
+          set -o pipefail
+          swift build 2>&1 | tee build.log
       - name: Run the tests
-        run: swift test 2>&1 | tail -60
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tail -80
       - name: Build the app bundle
         run: Packaging/build-app.sh
       - uses: actions/upload-artifact@v4
