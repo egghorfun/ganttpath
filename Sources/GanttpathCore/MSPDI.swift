@@ -404,7 +404,7 @@ func timeMinutes(_ s: String?) -> Int {
 }
 
 /// The WorkingTimes of a WeekDay / Exception element as periods in minutes ("00:00" as an end means midnight).
-func workingPeriods(_ el: XMLNode?) -> [Period] {
+func workingPeriods(_ el: XmlNode?) -> [Period] {
     var out: [RawPeriod] = []
     for tm in kids(kid(el, "WorkingTimes"), "WorkingTime") {
         let a = timeMinutes(tm.kidText("FromTime"))
@@ -435,7 +435,7 @@ private struct CalInfo {
     var recurring: [String]
 }
 
-private func parseCalendars(_ root: XMLNode, _ taskCalUids: Set<Int>, _ notes: inout [ImportNote], _ skipped: inout Int) -> [(uid: Int, def: CalendarDef)] {
+private func parseCalendars(_ root: XmlNode, _ taskCalUids: Set<Int>, _ notes: inout [ImportNote], _ skipped: inout Int) -> [(uid: Int, def: CalendarDef)] {
     var list: [CalInfo] = []
     for c in kids(kid(root, "Calendars"), "Calendar") {
         guard let uidD = xnum(c.kidText("UID")) else { continue }
@@ -541,7 +541,7 @@ func lagFromXml(_ raw: String?, _ format: String?, _ minPerDay: Double, _ minPer
 func trimNum(_ x: Double) -> Double { jsRound(x * 100) / 100 }
 
 public func importMSPDI(_ xmlText: String, fileName: String = "Imported project") throws -> ImportResult {
-    let root: XMLNode
+    let root: XmlNode
     do { root = try parseXml(xmlText) } catch { throw ModelError("Cannot read this XML file: \(error)") }
     if root.name != "Project" { throw ModelError("This is not an MS Project XML file (the top element is not <Project>).") }
     var notes: [ImportNote] = []

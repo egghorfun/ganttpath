@@ -223,7 +223,7 @@ final class AppState {
     func exportPDF() {
         let m = model
         let pages: [PrintedPage]
-        let names: [Tab: String] = [.network: "NetworkDiagram", .timeline: "TimelineSummary", .scurve: "SCurve", .cpm: "CriticalPath"]
+        let names: [ViewTab: String] = [.network: "NetworkDiagram", .timeline: "TimelineSummary", .scurve: "SCurve", .cpm: "CriticalPath"]
         switch m.tab {
         case .gantt: pages = ganttPrintPages(m.project, m.sched, printContext)
         case .cpm: pages = cpmPrintPages(m.project, m.sched, ViewSettings.shared.cpm, printContext)
@@ -256,7 +256,7 @@ final class AppState {
             model.say("Image export is only available for the Network Diagram, Timeline Summary and S-Curve views.")
             return
         }
-        let names: [Tab: String] = [.network: "NetworkDiagram", .timeline: "TimelineSummary", .scurve: "SCurve"]
+        let names: [ViewTab: String] = [.network: "NetworkDiagram", .timeline: "TimelineSummary", .scurve: "SCurve"]
         guard let path = askSavePath("\(model.project.name)_\(names[model.tab] ?? "View")", png ? ".png" : ".svg", title: "Export Image") else { return }
         let data: Data? = png ? ImageExport.png(d, scale: 2) : SVGWriter.svg(d, measurer: CoreTextMeasurer.shared).data(using: .utf8)
         guard let out = data else { alert = ("The image could not be saved", ""); return }

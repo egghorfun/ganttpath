@@ -360,10 +360,7 @@ struct ImportReportDialog: View {
                 let rep = ir.0.report
                 let source = ir.1, kind = ir.2
                 Text("Opened \(source) (\(kind)).")
-                KpiRow(items: [(String(rep.stats["tasks"] ?? m.project.tasks.count), "tasks", false), (rep.stats["links"].map(String.init) ?? "", "links", false)]
-                       + (rep.stats["calendars"].map { [(String($0), "calendars", false)] } ?? [])
-                       + ((rep.stats["manualTasks"] ?? 0) > 0 ? [(String(rep.stats["manualTasks"]!), "manual tasks", false)] : [])
-                       + (rep.hasCompare && (rep.compared ?? 0) > 0 ? [(String(rep.compared!), "dates checked", false), (String(rep.matched ?? 0), "same as file", false)] : []))
+                KpiRow(items: importKpis(rep, m.project.tasks.count))
                 if rep.hasCompare, let compared = rep.compared, compared > 0 {
                     let ok = rep.differenceCount == 0
                     Note(text: ok ? "Every automatically scheduled task got exactly the dates stored in the file (\(rep.matched ?? 0) of \(compared))."
@@ -392,6 +389,21 @@ struct ImportReportDialog: View {
             Button("OK") { state.sheet = nil }.keyboardShortcut(.defaultAction)
         }
     }
+}
+
+/// The numbers at the top of the import report.
+func importKpis(_ rep: ImportReport, _ taskCount: Int) -> [(String, String, Bool)] {
+    var out: [(String, String, Bool)] = []
+    out.append((String(rep.stats["tasks"] ?? taskCount), "tasks", false))
+    let links: String = rep.stats["links"].map { String($0) } ?? ""
+    out.append((links, "links", false))
+    if let c = rep.stats["calendars"] { out.append((String(c), "calendars", false)) }
+    if let mt = rep.stats["manualTasks"], mt > 0 { out.append((String(mt), "manual tasks", false)) }
+    if rep.hasCompare, let c = rep.compared, c > 0 {
+        out.append((String(c), "dates checked", false))
+        out.append((String(rep.matched ?? 0), "same as file", false))
+    }
+    return out
 }
 
 // MARK: - versions

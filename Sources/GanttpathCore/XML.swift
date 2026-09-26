@@ -4,22 +4,22 @@
 
 import Foundation
 
-public final class XMLNode {
+public final class XmlNode {
     public let name: String
     public var attrs: [String: String]
     public var text: String
-    public var children: [XMLNode]
+    public var children: [XmlNode]
     init(name: String, attrs: [String: String] = [:]) { self.name = name; self.attrs = attrs; self.text = ""; self.children = [] }
 
-    public func kids(_ name: String) -> [XMLNode] { children.filter { $0.name == name } }
-    public func kid(_ name: String) -> XMLNode? { children.first { $0.name == name } }
+    public func kids(_ name: String) -> [XmlNode] { children.filter { $0.name == name } }
+    public func kid(_ name: String) -> XmlNode? { children.first { $0.name == name } }
     /// The trimmed text of the first child with this name, or nil when there is none.
     public func kidText(_ name: String) -> String? { kid(name).map { jsTrim($0.text) } }
 }
 
-public func kids(_ node: XMLNode?, _ name: String) -> [XMLNode] { node?.kids(name) ?? [] }
-public func kid(_ node: XMLNode?, _ name: String) -> XMLNode? { node?.kid(name) }
-public func kidText(_ node: XMLNode?, _ name: String) -> String? { node?.kidText(name) }
+public func kids(_ node: XmlNode?, _ name: String) -> [XmlNode] { node?.kids(name) ?? [] }
+public func kid(_ node: XmlNode?, _ name: String) -> XmlNode? { node?.kid(name) }
+public func kidText(_ node: XmlNode?, _ name: String) -> String? { node?.kidText(name) }
 
 private let ENT: [String: String] = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'"]
 
@@ -79,12 +79,12 @@ func localName(_ s: Substring) -> String {
 }
 
 /// Parse XML text into a tree. Throws XMLError with a readable message on malformed input.
-public func parseXml(_ source: String) throws -> XMLNode {
+public func parseXml(_ source: String) throws -> XmlNode {
     // Work on unicode scalars so "\r\n" is two characters, like in JavaScript.
     let src = source.unicodeScalars
     var i = src.startIndex
     if src.first == "\u{FEFF}" { i = src.index(after: i) }
-    let root = XMLNode(name: "#root")
+    let root = XmlNode(name: "#root")
     var stack = [root]
     func text(_ a: String.UnicodeScalarView.Index, _ b: String.UnicodeScalarView.Index) -> String {
         unescapeXml(Substring(src[a..<b]))
@@ -157,7 +157,7 @@ public func parseXml(_ source: String) throws -> XMLNode {
             let innerU = Array(inner.unicodeScalars)
             let sp = innerU.firstIndex { CharacterSet.whitespacesAndNewlines.contains($0) }
             var nameText = ""; nameText.unicodeScalars.append(contentsOf: sp == nil ? innerU[...] : innerU[..<sp!])
-            let node = XMLNode(name: localName(Substring(nameText)))
+            let node = XmlNode(name: localName(Substring(nameText)))
             if let sp = sp { node.attrs = parseAttrs(Array(innerU[sp...])) }
             cur.children.append(node)
             if !selfClose { stack.append(node) }

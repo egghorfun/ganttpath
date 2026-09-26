@@ -30,7 +30,13 @@ jobs:
       - name: Run the tests
         run: |
           set -o pipefail
-          swift test 2>&1 | tail -80
+          swift test 2>&1 | tee test.log | tail -80
+      - name: List the compiler errors
+        if: failure()
+        run: |
+          for f in build.log test.log; do
+            [ -f "$f" ] && grep -E -A4 "(error|warning: .*will be an error)" "$f" | sed 's|/Users/runner/work/ganttpath/ganttpath/||' | awk '!seen[$0]++' | head -600
+          done
       - name: Build the app bundle
         run: Packaging/build-app.sh
       - uses: actions/upload-artifact@v4
@@ -40,3 +46,4 @@ jobs:
           path: |
             dist/*.zip
             build.log
+            test.log

@@ -163,7 +163,7 @@ public func readXlsx(_ buf: [UInt8], sheetName: String? = nil) throws -> [ReadSh
     if let ssXml = text("xl/sharedStrings.xml") {
         for si in try parseXml(ssXml).kids("si") {
             var parts: [String] = []
-            func walk(_ n: XMLNode) { for c in n.children { if c.name == "t" { parts.append(c.text) } else if c.name == "r" { walk(c) } } }
+            func walk(_ n: XmlNode) { for c in n.children { if c.name == "t" { parts.append(c.text) } else if c.name == "r" { walk(c) } } }
             walk(si)
             sst.append(parts.joined())
         }
@@ -205,7 +205,7 @@ public func readXlsx(_ buf: [UInt8], sheetName: String? = nil) throws -> [ReadSh
                 case "s": val = v.map { .text(Int($0).flatMap { $0 >= 0 && $0 < sst.count ? sst[$0] : nil } ?? "") }
                 case "inlineStr":
                     if let isNode = c.kid("is") {
-                        func collect(_ n: XMLNode) -> String { n.children.map { $0.name == "t" ? $0.text : $0.name == "r" ? collect($0) : "" }.joined() }
+                        func collect(_ n: XmlNode) -> String { n.children.map { $0.name == "t" ? $0.text : $0.name == "r" ? collect($0) : "" }.joined() }
                         val = .text(collect(isNode))
                     } else { val = .text("") }
                 case "str", "e": val = v.map { .text($0) }

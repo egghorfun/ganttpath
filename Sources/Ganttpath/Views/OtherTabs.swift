@@ -18,7 +18,7 @@ final class ViewSettings {
     var cpm = CpmState()
     var scurveBaseline: Int? = nil
 
-    func zoom(_ tab: Tab, _ dir: Int) {
+    func zoom(_ tab: ViewTab, _ dir: Int) {
         if tab == .network { networkScale = max(0.25, min(3, networkScale * (dir > 0 ? 1.25 : 0.8))) }
         else if tab == .timeline { timelineZoom = max(1, min(12, timelineZoom * (dir > 0 ? 1.4 : 1 / 1.4))) }
     }
@@ -136,8 +136,8 @@ struct NetworkTab: View {
                     ForEach(summaries, id: \.self) { i in Text("Inside: \(m.sched.tasks[i].wbs) \(truncJS(m.project.tasks[i].name, 34))").tag("s:\(m.project.tasks[i].uid)") }
                 }.fixedSize()
                 Toggle("Include summary tasks", isOn: $vs.networkSummaries)
-                Button("−") { vs.zoom(.network, -1) }.help("Zoom out (⌘-)")
-                Button("+") { vs.zoom(.network, 1) }.help("Zoom in (⌘+)")
+                Button("−") { ViewSettings.shared.zoom(.network, -1) }.help("Zoom out (⌘-)")
+                Button("+") { ViewSettings.shared.zoom(.network, 1) }.help("Zoom in (⌘+)")
                 Button("100%") { vs.networkScale = 1 }
                 Text("Each box: ID, WBS, name, dates, duration and total slack. Click to select, double-click to show the task on the Gantt chart.")
                     .foregroundStyle(.secondary).lineLimit(1)
@@ -175,8 +175,8 @@ struct TimelineTab: View {
                     Text("All milestones").tag(TimelineMilestones.all)
                     Text("None").tag(TimelineMilestones.none)
                 }.fixedSize()
-                Button("−") { vs.zoom(.timeline, -1) }
-                Button("+") { vs.zoom(.timeline, 1) }
+                Button("−") { ViewSettings.shared.zoom(.timeline, -1) }
+                Button("+") { ViewSettings.shared.zoom(.timeline, 1) }
                 Button("Fit") { vs.timelineZoom = 1 }
                 Text("One bar for each top-level summary task. Click a bar to show it on the Gantt chart.").foregroundStyle(.secondary).lineLimit(1)
             }

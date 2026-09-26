@@ -332,7 +332,7 @@ struct TabsView: View {
     var body: some View {
         let m = state.model
         HStack(spacing: 2) {
-            ForEach(Tab.allCases, id: \.self) { t in
+            ForEach(ViewTab.allCases, id: \.self) { t in
                 Button { m.tab = t } label: {
                     Text(t.title.prefix(1).uppercased() + t.title.dropFirst())
                         .fontWeight(m.tab == t ? .semibold : .regular)

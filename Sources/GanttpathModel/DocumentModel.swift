@@ -6,7 +6,7 @@ import Foundation
 import Observation
 import GanttpathCore
 
-public enum Tab: String, CaseIterable, Sendable {
+public enum ViewTab: String, CaseIterable, Sendable {
     case gantt, network, timeline, cpm, scurve
     public var title: String {
         switch self {
@@ -103,7 +103,7 @@ public final class DocumentModel {
 
     // view
     public var view = ViewState() { didSet { rebuildRows() } }
-    public var tab: Tab = .gantt
+    public var tab: ViewTab = .gantt
     public var px: Double = ZOOM_BASE_PX
     public var showBaseline = -1
     public var showCritical = true

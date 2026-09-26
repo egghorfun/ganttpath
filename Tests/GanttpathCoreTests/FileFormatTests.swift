@@ -11,7 +11,7 @@ private let ORDER: [String: [String]] = {
     return out
 }()
 
-private func checkOrder(_ node: XMLNode, _ order: [String], _ where_: String) {
+private func checkOrder(_ node: XmlNode, _ order: [String], _ where_: String) {
     var last = -1
     for c in node.children {
         let idx = order.firstIndex(of: c.name) ?? -1
@@ -21,7 +21,7 @@ private func checkOrder(_ node: XMLNode, _ order: [String], _ where_: String) {
     }
 }
 @discardableResult
-private func checkAllOrders(_ xml: String) throws -> XMLNode {
+private func checkAllOrders(_ xml: String) throws -> XmlNode {
     let root = try parseXml(xml)
     #expect(root.name == "Project")
     checkOrder(root, ORDER["Project"]!, "Project")
