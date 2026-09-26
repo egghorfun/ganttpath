@@ -130,10 +130,14 @@ enum SmokeTest {
                     }
                 }
                 if steps[i].0 == "narrow-toolbar" {
+                    NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.contentView?.layoutSubtreeIfNeeded()
                     log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
                 }
                 if steps[i].0 == "network" {
-                    log("toolbar rows after restoring the width: \(ToolbarRows.lastRows)")
+                    let w = NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }
+                    w?.contentView?.layoutSubtreeIfNeeded()
+                    w?.displayIfNeeded()
+                    log("toolbar rows after restoring the width: \(ToolbarRows.lastRows), window \(w.map { "\($0.frame)" } ?? "-"), content \(w?.contentView.map { "\($0.frame)" } ?? "-")")
                 }
                 if steps[i].0 == "error-box" {
                     log("error box showing: \(state.errorAlert != nil), as a sheet: \(state.errorAlert?.window.sheetParent != nil), no fading toast: \(m.toast == nil), in log: \(m.log.last?.kind == .error)")
@@ -174,7 +178,7 @@ enum SmokeTest {
             if i % 64 == 0 { colours.insert(UInt32(px[i]) << 16 | UInt32(px[i + 1]) << 8 | UInt32(px[i + 2])) }
             i += 4
         }
-        return "\(w)x\(h), not background \(other * 100 / max(1, w * h))%, colours \(colours.count), task-colour px \(task), critical px \(crit), conflict px \(conflict)"
+        return "\(w)x\(h), corner pixel \(bg0.0),\(bg0.1),\(bg0.2), not background \(other * 100 / max(1, w * h))%, colours \(colours.count), task-colour px \(task), critical px \(crit), conflict px \(conflict)"
     }
 
     /// Nothing of the chart may be drawn over the task table: the table's heading and first rows must look the same before and
