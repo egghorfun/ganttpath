@@ -1,0 +1,667 @@
+{
+ "format": "ganttpath",
+ "schema": 1,
+ "app": "Ganttpath",
+ "version": "1.0.0",
+ "savedAt": "2026-09-20T00:00:00.000Z",
+ "kind": "manual",
+ "project": {
+  "schema": 1,
+  "name": "Sample - Pump station",
+  "nextUid": 16,
+  "settings": {
+   "startDate": "2026-10-05",
+   "statusDate": null,
+   "dateFormat": "DD-MMM-YYYY",
+   "honorConstraints": true,
+   "criticalSlackDays": 0,
+   "nearCriticalDays": 2,
+   "newTasksAuto": true,
+   "country": "SG",
+   "defaultCalendarId": "std",
+   "weekStartsMonday": true
+  },
+  "calendars": [
+   {
+    "id": "std",
+    "name": "Standard",
+    "workWeek": [
+     false,
+     true,
+     true,
+     true,
+     true,
+     true,
+     false
+    ],
+    "exceptions": [
+     {
+      "from": "2026-11-09",
+      "to": "2026-11-09",
+      "working": false,
+      "name": "Example holiday"
+     }
+    ]
+   }
+  ],
+  "tags": [],
+  "customColumns": [],
+  "tasks": [
+   {
+    "uid": 1,
+    "name": "Site works",
+    "level": 1,
+    "mode": "auto",
+    "duration": 18,
+    "start": "2026-10-05",
+    "finish": "2026-10-28",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 2,
+    "name": "Mobilise",
+    "level": 2,
+    "mode": "auto",
+    "duration": 3,
+    "start": "2026-10-05",
+    "finish": "2026-10-07",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 3,
+    "name": "Excavate",
+    "level": 2,
+    "mode": "auto",
+    "duration": 5,
+    "start": "2026-10-08",
+    "finish": "2026-10-14",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 2,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 4,
+    "name": "Foundations",
+    "level": 2,
+    "mode": "auto",
+    "duration": 4,
+    "start": "2026-10-19",
+    "finish": "2026-10-22",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 3,
+      "type": "FS",
+      "lag": {
+       "v": 2,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 5,
+    "name": "Steel erection",
+    "level": 2,
+    "mode": "auto",
+    "duration": 6,
+    "start": "2026-10-21",
+    "finish": "2026-10-28",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 4,
+      "type": "SS",
+      "lag": {
+       "v": 2,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 6,
+    "name": "Piping",
+    "level": 2,
+    "mode": "auto",
+    "duration": 5,
+    "start": "2026-10-22",
+    "finish": "2026-10-28",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 5,
+      "type": "FF",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 7,
+    "name": "Equipment",
+    "level": 1,
+    "mode": "auto",
+    "duration": 25,
+    "start": "2026-10-05",
+    "finish": "2026-11-06",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 8,
+    "name": "Order pump",
+    "level": 2,
+    "mode": "auto",
+    "duration": 2,
+    "start": "2026-10-05",
+    "finish": "2026-10-06",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 9,
+    "name": "Manufacture pump",
+    "level": 2,
+    "mode": "auto",
+    "duration": 15,
+    "start": "2026-10-07",
+    "finish": "2026-10-27",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 8,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 10,
+    "name": "Deliver pump",
+    "level": 2,
+    "mode": "auto",
+    "duration": 5,
+    "start": "2026-10-28",
+    "finish": "2026-11-03",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 9,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 11,
+    "name": "Install pump",
+    "level": 2,
+    "mode": "auto",
+    "duration": 3,
+    "start": "2026-11-04",
+    "finish": "2026-11-06",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 10,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     },
+     {
+      "uid": 4,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 12,
+    "name": "Commissioning and handover",
+    "level": 1,
+    "mode": "auto",
+    "duration": 14,
+    "start": "2026-10-26",
+    "finish": "2026-11-13",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 13,
+    "name": "Permit inspection",
+    "level": 2,
+    "mode": "auto",
+    "duration": 2,
+    "start": "2026-10-26",
+    "finish": "2026-10-27",
+    "milestone": false,
+    "constraint": {
+     "type": "SNET",
+     "date": "2026-10-26"
+    },
+    "deadline": null,
+    "preds": [],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 14,
+    "name": "Commissioning",
+    "level": 2,
+    "mode": "auto",
+    "duration": 4,
+    "start": "2026-11-10",
+    "finish": "2026-11-13",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 11,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     },
+     {
+      "uid": 6,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     },
+     {
+      "uid": 13,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   },
+   {
+    "uid": 15,
+    "name": "Handover",
+    "level": 2,
+    "mode": "auto",
+    "duration": 0,
+    "start": "2026-11-13",
+    "finish": "2026-11-13",
+    "milestone": false,
+    "constraint": {
+     "type": "ASAP",
+     "date": null
+    },
+    "deadline": null,
+    "preds": [
+     {
+      "uid": 14,
+      "type": "FS",
+      "lag": {
+       "v": 0,
+       "u": "d"
+      }
+     }
+    ],
+    "pct": 0,
+    "actualStart": null,
+    "actualFinish": null,
+    "calendarId": null,
+    "weight": null,
+    "baselines": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "tags": [],
+    "color": null,
+    "custom": {},
+    "notes": "",
+    "collapsed": false
+   }
+  ]
+ }
+}
