@@ -48,9 +48,12 @@ case "schedule-dir":
     let files = (try? FileManager.default.contentsOfDirectory(atPath: inDir))?.filter { $0.hasSuffix(".json") }.sorted() ?? []
     for f in files {
         let out = JSONWriter.stringify(scheduleOutput(readText(inDir + "/" + f)))
-        FileManager.default.createFile(atPath: outDir + "/" + f, contents: out.data(using: .utf8))
+        _ = FileManager.default.createFile(atPath: outDir + "/" + f, contents: out.data(using: .utf8))
     }
     print("\(files.count) file(s)")
+case "view-dir":
+    guard args.count >= 3 else { fail("usage: gpcli view-dir <in> <out>") }
+    viewDir(args[1], args[2])
 case "ops":
     guard args.count >= 2 else { fail("usage: gpcli ops <script.json>") }
     do {
@@ -65,7 +68,7 @@ case "ops-dir":
     for f in files {
         let out: JSON
         do { out = try runOpsScript(try JSONParser.parse(readText(inDir + "/" + f))) } catch { out = .object(JSONObject([("crash", .string("\(error)"))])) }
-        FileManager.default.createFile(atPath: outDir + "/" + f, contents: JSONWriter.stringify(out).data(using: .utf8))
+        _ = FileManager.default.createFile(atPath: outDir + "/" + f, contents: JSONWriter.stringify(out).data(using: .utf8))
     }
     print("\(files.count) file(s)")
 case "export-dir":
@@ -79,10 +82,10 @@ case "export-dir":
         do {
             let p = try loadProjectJSON(readText(inDir + "/" + f))
             let out = try exportProject(fmt, p, now: now)
-            FileManager.default.createFile(atPath: outDir + "/" + f.replacingOccurrences(of: ".json", with: out.ext), contents: out.data)
-            FileManager.default.createFile(atPath: outDir + "/" + f.replacingOccurrences(of: ".json", with: ".notes.json"),
+            _ = FileManager.default.createFile(atPath: outDir + "/" + f.replacingOccurrences(of: ".json", with: out.ext), contents: out.data)
+            _ = FileManager.default.createFile(atPath: outDir + "/" + f.replacingOccurrences(of: ".json", with: ".notes.json"),
                                            contents: JSONWriter.stringify(.array(out.notes.map { .string($0) })).data(using: .utf8))
-        } catch { FileManager.default.createFile(atPath: outDir + "/" + f.replacingOccurrences(of: ".json", with: ".error"), contents: "\(error)".data(using: .utf8)) }
+        } catch { _ = FileManager.default.createFile(atPath: outDir + "/" + f.replacingOccurrences(of: ".json", with: ".error"), contents: "\(error)".data(using: .utf8)) }
     }
     print("\(files.count) file(s)")
 case "import-dir":
@@ -98,7 +101,7 @@ case "import-dir":
             guard case .imported(let res, let source, let kind) = r else { fail("unexpected") }
             out = .object(JSONObject([("project", res.project.json), ("report", res.report.json), ("source", .string(source)), ("sourceKind", .string(kind))]))
         } catch { out = .object(JSONObject([("error", .string("\(error)"))])) }
-        FileManager.default.createFile(atPath: outDir + "/" + f + ".json", contents: JSONWriter.stringify(out).data(using: .utf8))
+        _ = FileManager.default.createFile(atPath: outDir + "/" + f + ".json", contents: JSONWriter.stringify(out).data(using: .utf8))
     }
     print("\(files.count) file(s)")
 default:

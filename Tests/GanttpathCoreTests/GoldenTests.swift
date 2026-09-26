@@ -108,3 +108,35 @@ func jsonDiff(_ a: JSON, _ b: JSON, _ path: String = "", _ out: inout [String], 
         #expect(bad == 0)
     }
 }
+
+@Suite struct GoldenJS136ViewTests {
+    /// Table cells (text, style, edit value, locked), column widths, the Gantt time scale, bars, labels, links and progress line,
+    /// critical-path rows and timeline data, against what the JavaScript 1.3.6 UI code computes for the same projects.
+    @Test func tableChartCriticalPathAndTimelineMatchTheJavaScriptApp() throws {
+        let cases = try loadGolden("js136-view.json.z")
+        #expect(cases.count == 86)
+        var bad = 0, cells = 0, bars = 0
+        for c in cases {
+            let p = try Project.from(json: c["input"]!)
+            let got = viewCheckJSON(p, Int(c["k"]!.number!))
+            cells += got["table"]!.array!.reduce(0) { $0 + $1.array!.count }
+            bars += got["chart"]!["bars"]!.array!.count
+            var diff: [String] = []
+            jsonDiff(c["expected"]!, got, "", &diff)
+            if !diff.isEmpty { bad += 1; Issue.record("\(c["name"]!.string!): \(diff.prefix(5))") }
+        }
+        #expect(bad == 0)
+        #expect(cells > 50_000)
+        #expect(bars > 1_000)
+    }
+
+    @Test func toFixedMatchesJavaScript() throws {
+        let list = try JSONParser.parse(String(decoding: FileManager.default.contents(atPath: fixture("js-tofixed.json"))!, as: UTF8.self)).array!
+        #expect(list.count > 900)
+        for e in list {
+            let a = e.array!
+            let got = jsToFixed(a[0].number!, Int(a[1].number!))
+            #expect(got == a[2].string!, "\(a[0].number!).toFixed(\(a[1].number!))")
+        }
+    }
+}
