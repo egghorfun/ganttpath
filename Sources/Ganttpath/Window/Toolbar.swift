@@ -122,11 +122,11 @@ struct TBMenu<Items: View>: View {
 
 // MARK: - wrapping layout
 
-private struct ToolbarRoleKey: LayoutValueKey { static let defaultValue = ToolbarRole.main }
+private struct ToolbarSlotKey: LayoutValueKey { static let defaultValue = ToolbarSlot.main }
 
 extension View {
     /// Where a group goes in the toolbar (see arrangeToolbar): row 1 (the default), the right edge of row 1, or row 2.
-    func toolbarRole(_ r: ToolbarRole) -> some View { layoutValue(key: ToolbarRoleKey.self, value: r) }
+    func toolbarSlot(_ r: ToolbarSlot) -> some View { layoutValue(key: ToolbarSlotKey.self, value: r) }
 }
 
 /// Places the toolbar's groups in rows as arrangeToolbar decides, items centred in their row.
@@ -138,7 +138,7 @@ struct ToolbarRows: Layout {
 
     private func rows(_ width: CGFloat, _ subviews: Subviews) -> ([[(index: Int, x: Double)]], [CGSize]) {
         let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
-        let r = arrangeToolbar(widths: sizes.map { Double($0.width) }, roles: subviews.map { $0[ToolbarRoleKey.self] },
+        let r = arrangeToolbar(widths: sizes.map { Double($0.width) }, roles: subviews.map { $0[ToolbarSlotKey.self] },
                                width: Double(width), spacing: Double(hSpacing))
         return (r, sizes)
     }
@@ -255,7 +255,7 @@ struct ToolbarView: View {
                     TB(icon: "close", label: "Clear", help: "Remove search, filter, sort and group") { m.view = ViewState(); search = "" }
                 }
             }
-            .toolbarRole(.secondLine)
+            .toolbarSlot(.secondLine)
             TBGroup(last: true) {
                 TB(icon: "warn", label: String(n), help: n > 0 ? "\(plural(n, "conflict")) - click to list them" : "No conflicts", on: m.conflictsOpen && m.issuesTab == .conflicts, warn: n > 0) {
                     if m.conflictsOpen && m.issuesTab == .conflicts { m.conflictsOpen = false } else { m.showIssues(.conflicts) }
@@ -266,7 +266,7 @@ struct ToolbarView: View {
                 }
                 TB(icon: state.isDark ? "sun" : "moon", help: "Light or dark mode (⇧⌘D)") { state.cycleTheme() }
             }
-            .toolbarRole(.trailing)
+            .toolbarSlot(.trailing)
         }
         .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 5)
         .background(Color(nsColor: t.panel.ns))

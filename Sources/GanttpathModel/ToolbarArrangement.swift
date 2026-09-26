@@ -4,10 +4,10 @@
 // Project, task panel, light/dark). The search/filter group always starts row 2. When the window is too narrow the main groups
 // wrap, and the trailing group moves to the right end of the last row (or a row of its own when it does not fit there).
 
-public enum ToolbarRole: Sendable { case main, trailing, secondLine }
+public enum ToolbarSlot: Sendable { case main, trailing, secondLine }
 
 /// Rows of (item index, x) for items of the given widths and roles in a toolbar `width` wide.
-public func arrangeToolbar(widths: [Double], roles: [ToolbarRole], width: Double, spacing: Double) -> [[(index: Int, x: Double)]] {
+public func arrangeToolbar(widths: [Double], roles: [ToolbarSlot], width: Double, spacing: Double) -> [[(index: Int, x: Double)]] {
     precondition(widths.count == roles.count)
     func flow(_ items: [Int]) -> [[(index: Int, x: Double)]] {
         var rows: [[(index: Int, x: Double)]] = []

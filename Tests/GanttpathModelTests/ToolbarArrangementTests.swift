@@ -6,7 +6,7 @@ import Testing
 @Suite struct ToolbarArrangementTests {
     // five main groups, the search/filter group, the right-hand group
     let widths: [Double] = [200, 60, 300, 250, 400, 350, 150]
-    let roles: [ToolbarRole] = [.main, .main, .main, .main, .main, .secondLine, .trailing]
+    let roles: [ToolbarSlot] = [.main, .main, .main, .main, .main, .secondLine, .trailing]
 
     func layout(_ w: Double) -> [[Int]] {
         arrangeToolbar(widths: widths, roles: roles, width: w, spacing: 4).map { $0.map { $0.index } }
