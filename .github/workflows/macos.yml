@@ -47,12 +47,6 @@ jobs:
           echo "=== report"; cat smoke/report.txt || true
           ls -la smoke
           ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i ganttpath && head -80 ~/Library/Logs/DiagnosticReports/*anttpath* || echo "no crash report"
-          for f in smoke/*.png; do
-            sips -Z 1100 -s format jpeg -s formatOptions 60 "$f" --out "${f%.png}.jpg" >/dev/null
-            echo "=== IMG $(basename "${f%.png}.jpg")"
-            base64 -b 160 -i "${f%.png}.jpg"
-            echo "=== END"
-          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

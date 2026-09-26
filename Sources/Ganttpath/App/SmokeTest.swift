@@ -3,6 +3,7 @@
 // writes a report and quits. Not used in normal use.
 
 import AppKit
+import PDFKit
 import SwiftUI
 import GanttpathCore
 import GanttpathModel
@@ -46,6 +47,11 @@ enum SmokeTest {
                 if let pdf = ImageExport.pdf(pages.map { $0.drawing }, title: m.project.name) {
                     try? pdf.write(to: URL(fileURLWithPath: dir + "/gantt.pdf"))
                     log("pdf pages \(pages.count), bytes \(pdf.count)")
+                    if let doc = PDFDocument(data: pdf) {
+                        let text = doc.string ?? ""
+                        let names = m.project.tasks.prefix(5).map { $0.name }
+                        log("pdf read back: \(doc.pageCount) page(s), size \(doc.page(at: 0).map { "\(Int($0.bounds(for: .mediaBox).width))x\(Int($0.bounds(for: .mediaBox).height)) pt" } ?? "-"), task names found \(names.filter { text.contains($0) }.count) of \(names.count), footer page number \(text.contains("Page 1 of"))")
+                    }
                 } else { log("pdf FAILED") }
                 m.tab = .network
                 if let d = state.diagramForExport, let png = ImageExport.png(d, scale: 2) {
@@ -64,12 +70,40 @@ enum SmokeTest {
             }
             steps[i].1()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                let ok = snapshot(dir + "/\(String(format: "%02d", i + 1))-\(steps[i].0).png")
-                log("snapshot \(steps[i].0): \(ok)")
+                let path = dir + "/\(String(format: "%02d", i + 1))-\(steps[i].0).png"
+                let ok = snapshot(path)
+                log("snapshot \(steps[i].0): \(ok) \(ok ? analyse(path, state) : "")")
                 step(i + 1)
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { step(0) }
+    }
+
+    /// What a picture holds: how much is not background, and how many pixels have the task, critical and conflict colours.
+    static func analyse(_ path: String, _ state: AppState) -> String {
+        guard let img = NSImage(contentsOfFile: path), let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return "(unreadable)" }
+        let w = cg.width, h = cg.height
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue), let data = ctx.data else { return "(no bitmap)" }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let px = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        func near(_ i: Int, _ c: RGBA) -> Bool {
+            abs(Double(px[i]) - c.r * 255) < 14 && abs(Double(px[i + 1]) - c.g * 255) < 14 && abs(Double(px[i + 2]) - c.b * 255) < 14
+        }
+        let t = state.theme
+        let bg0 = (px[0], px[1], px[2])
+        var other = 0, task = 0, crit = 0, conflict = 0
+        var colours = Set<UInt32>()
+        var i = 0
+        while i < w * h * 4 {
+            if (px[i], px[i + 1], px[i + 2]) != bg0 { other += 1 }
+            if let c = t.c["task"], near(i, c) { task += 1 }
+            if let c = t.c["critical"], near(i, c) { crit += 1 }
+            if let c = t.c["conflict"], near(i, c) { conflict += 1 }
+            if i % 64 == 0 { colours.insert(UInt32(px[i]) << 16 | UInt32(px[i + 1]) << 8 | UInt32(px[i + 2])) }
+            i += 4
+        }
+        return "\(w)x\(h), not background \(other * 100 / max(1, w * h))%, colours \(colours.count), task-colour px \(task), critical px \(crit), conflict px \(conflict)"
     }
 
     /// A picture of the key window (and of a sheet over it), drawn by AppKit.
