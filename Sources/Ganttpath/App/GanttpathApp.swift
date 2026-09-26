@@ -68,6 +68,32 @@ final class AppState {
     var isDark: Bool { p.theme == "dark" || (p.theme == "auto" && systemDark) }
     var theme: Theme { p.theme(dark: isDark) }
 
+    /// The message box for an error, shown until OK is pressed (as Microsoft Project does). "Show Message Log" also opens the log.
+    @ObservationIgnored var errorAlert: NSAlert? = nil
+    func presentPendingError() {
+        guard errorAlert == nil, let e = model.pendingError else { return }
+        let a = NSAlert()
+        a.alertStyle = .warning
+        a.messageText = "Ganttpath"
+        a.informativeText = e.message
+        a.addButton(withTitle: "OK")
+        a.addButton(withTitle: "Show Message Log")
+        errorAlert = a
+        let done: (NSApplication.ModalResponse) -> Void = { [weak self] r in
+            guard let self else { return }
+            self.errorAlert = nil
+            if self.model.pendingError?.id == e.id { self.model.pendingError = nil }
+            if r == .alertSecondButtonReturn { self.model.showIssues(.messages) }
+            // another error came while this one was showing
+            if self.model.pendingError != nil { DispatchQueue.main.async { self.presentPendingError() } }
+        }
+        if let w = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.canBecomeKey }) {
+            a.beginSheetModal(for: w, completionHandler: done)
+        } else {
+            done(a.runModal())
+        }
+    }
+
     func applyAppearance() {
         switch prefs.prefs.theme {
         case "light": NSApp?.appearance = NSAppearance(named: .aqua)

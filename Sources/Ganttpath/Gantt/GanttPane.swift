@@ -43,7 +43,7 @@ struct GanttPane: NSViewRepresentable {
     func updateNSView(_ nsView: GanttPaneView, context: Context) { nsView.refresh() }
 }
 
-final class GanttPaneView: FlippedView {
+final class GanttPaneView: FlippedView, NSViewToolTipOwner {
     let state: AppState
     var model: DocumentModel { state.model }
     let tableHeader: TableHeaderView
@@ -124,6 +124,34 @@ final class GanttPaneView: FlippedView {
             o.x += Double(p - l.originDn) * l.px * s
             chartScroll.contentView.scroll(to: o)
             chartScroll.reflectScrolledClipView(chartScroll.contentView)
+        }
+        updateIssueTips()
+    }
+
+    // MARK: tooltips of rows with a conflict
+
+    /// The rows (table and chart) that have a scheduling conflict, or a task below them with one, show what is wrong when the
+    /// pointer rests on them, as the indicator tooltip does in Microsoft Project. Only those rows get a tooltip area.
+    private var issueTipKey: [Int] = []
+    /// Row positions that have a tooltip area.
+    private(set) var issueTipRows: [Int] = []
+    func updateIssueTips() {
+        let s = scale
+        var positions: [Int] = []
+        if !model.sched.conflicts.isEmpty {
+            for (pos, r) in model.rows.enumerated() {
+                if let i = r.index, i < model.sched.tasks.count, model.sched.tasks[i].hasConflict || model.sched.tasks[i].childConflict { positions.append(pos) }
+            }
+        }
+        let key = positions + [Int(tableBody.bounds.width), Int(chartBody.bounds.width), Int(s * 100)]
+        if key == issueTipKey { return }
+        issueTipKey = key
+        issueTipRows = positions
+        for v in [tableBody, chartBody] as [NSView] {
+            v.removeAllToolTips()
+            for pos in positions {
+                v.addToolTip(NSRect(x: 0, y: Double(pos) * ROW_H * s, width: v.bounds.width, height: ROW_H * s), owner: self, userData: nil)
+            }
         }
     }
 
@@ -233,6 +261,13 @@ final class GanttPaneView: FlippedView {
         case .scrollToStart: DispatchQueue.main.async { self.scrollToStart() }
         case .openInspector: break
         }
+    }
+}
+
+extension GanttPaneView {
+    /// The text of the tooltip under the pointer, read when it is about to show (so it is always up to date).
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
+        model.issueTip(y: Double(point.y) / scale) ?? ""
     }
 }
 

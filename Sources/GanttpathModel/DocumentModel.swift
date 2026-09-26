@@ -21,6 +21,20 @@ public enum ViewTab: String, CaseIterable, Sendable {
 
 public enum SelMode: Sendable { case rows, cells }
 
+/// One entry of the message log: every message the app showed, kept for the session (like a log, newest last).
+public struct LogEntry: Equatable, Sendable, Identifiable {
+    public var id: Int
+    public var time: Date
+    public var kind: Toast.Kind
+    public var message: String
+    /// The task that was selected when the message appeared (for "Go to task").
+    public var uid: Int?
+    public var taskLabel: String?
+}
+
+/// The two tabs of the pane at the bottom of the window.
+public enum IssuesTab: String, Sendable { case conflicts, messages }
+
 public struct Toast: Equatable, Sendable {
     public enum Kind: String, Sendable { case info, error }
     public var id: Int
@@ -121,6 +135,14 @@ public final class DocumentModel {
     public var importReport: (ImportResult, String, String)? = nil
     public private(set) var toast: Toast? = nil
     @ObservationIgnored private var toastId = 0
+    /// Every message shown in this session, oldest first (at most LOG_LIMIT).
+    public private(set) var log: [LogEntry] = []
+    public static let LOG_LIMIT = 1000
+    /// An error waiting to be acknowledged: shown in a message box that stays until OK is pressed (as Microsoft Project does).
+    public var pendingError: LogEntry? = nil
+    /// Which tab of the bottom pane is showing.
+    public var issuesTab: IssuesTab = .conflicts
+    public var errorCount: Int { log.filter { $0.kind == .error }.count }
     @ObservationIgnored public var onEvent: ((ModelEvent) -> Void)? = nil
     @ObservationIgnored public var onPrefsChange: ((inout Prefs) -> Void) -> Void = { _ in }
     @ObservationIgnored public let env: AppEnvironment
@@ -214,9 +236,29 @@ public final class DocumentModel {
 
     public func say(_ message: String, _ kind: Toast.Kind = .info, _ seconds: Double = 4.2) {
         toastId += 1
-        toast = Toast(id: toastId, message: message, kind: kind, seconds: kind == .error ? max(seconds, 7) : seconds)
+        var label: String? = nil
+        let uid = selection.count == 1 ? selection.first : cursorUid
+        if let u = uid, let i = index(of: u) { label = "\(i + 1)  \(project.tasks[i].name)" }
+        let entry = LogEntry(id: toastId, time: env.now(), kind: kind, message: message, uid: uid, taskLabel: label)
+        log.append(entry)
+        if log.count > Self.LOG_LIMIT { log.removeFirst(log.count - Self.LOG_LIMIT) }
+        if kind == .error {
+            // errors do not fade away: they wait in a message box until they are acknowledged
+            pendingError = entry
+            return
+        }
+        toast = Toast(id: toastId, message: message, kind: kind, seconds: seconds)
     }
     public func dismissToast(_ id: Int) { if toast?.id == id { toast = nil } }
+    public func clearLog() { log = [] }
+    /// Open the bottom pane on one of its tabs.
+    public func showIssues(_ tab: IssuesTab) { issuesTab = tab; conflictsOpen = true }
+    /// The log as text (for Copy), newest last: "14:05  Error  row 3 Excavate  message".
+    public var logText: String {
+        log.map { e in
+            "\(stampText(e.time))\t\(e.kind == .error ? "Error" : "Information")\t\(e.taskLabel ?? "")\t\(e.message)"
+        }.joined(separator: "\n")
+    }
     func emit(_ e: ModelEvent) { onEvent?(e) }
 
     // MARK: running edits

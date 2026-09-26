@@ -27,10 +27,29 @@ enum SmokeTest {
         }
         let m = state.model
         log("tasks \(m.project.tasks.count), conflicts \(m.sched.conflictCount), finish \(m.sched.projectFinish ?? "-")")
+        var madeConflict = false
         let steps: [(String, () -> Void)] = [
             ("gantt", { m.tab = .gantt; m.selectOnly(m.project.tasks.count > 2 ? m.project.tasks[2].uid : nil) }),
             ("inspector", { m.inspectorOpen = true }),
             ("conflicts", { m.inspectorOpen = false; m.conflictsOpen = true }),
+            ("row-tooltip", {
+                m.conflictsOpen = false; m.tab = .gantt
+                if m.sched.conflicts.isEmpty, let i = m.project.tasks.indices.last(where: { !m.sched.tasks[$0].isSummary && m.project.tasks[$0].level > 1 }),
+                   let start = m.sched.projectStart {
+                    // make a conflict to look at (undone in the next step)
+                    let uid = m.project.tasks[i].uid
+                    _ = m.run("Deadline") { d, _ in try setDeadline(&d, uid, start) }
+                    madeConflict = true
+                    log("made a deadline conflict on row \(i + 1): conflicts now \(m.sched.conflicts.count)")
+                }
+            }),
+            ("error-box", {
+                if madeConflict { m.undo(); madeConflict = false }
+                m.say("Smoke test: an error message that must stay until OK is pressed.", .error) }),
+            ("message-log", {
+                // press "Show Message Log" on the box
+                if let a = state.errorAlert, let parent = a.window.sheetParent { parent.endSheet(a.window, returnCode: .alertSecondButtonReturn) }
+            }),
             ("network", { m.conflictsOpen = false; m.tab = .network }),
             ("timeline", { m.tab = .timeline }),
             ("cpm", { m.tab = .cpm }),
@@ -80,6 +99,29 @@ enum SmokeTest {
                         state.gantt?.view?.scrollToStart()
                     }
                     log("table header unchanged while the chart scrolls (expected true): \(tableHeaderStaysPut(state))")
+                }
+                if steps[i].0 == "row-tooltip", let pane = state.gantt?.view {
+                    pane.relayout()
+                    let rows = pane.issueTipRows
+                    let expected = m.rows.indices.filter { m.issueTip(row: $0) != nil }
+                    log("rows with a conflict tooltip: \(rows.count), rows with conflicts: \(expected.count), same rows: \(rows == expected)")
+                    if let pos = rows.first {
+                        let pt = NSPoint(x: 40, y: (Double(pos) + 0.5) * ROW_H * pane.scale)
+                        let text = pane.view(pane.tableBody, stringForToolTip: 0, point: pt, userData: nil)
+                        log("tooltip of row \(pos + 1) (table): \(text.replacingOccurrences(of: "\n", with: " | "))")
+                        let text2 = pane.view(pane.chartBody, stringForToolTip: 0, point: pt, userData: nil)
+                        log("chart tooltip same as table: \(text2 == text && !text.isEmpty)")
+                    }
+                    if let clean = m.rows.indices.first(where: { !rows.contains($0) && m.rows[$0].index != nil }) {
+                        let pt = NSPoint(x: 40, y: (Double(clean) + 0.5) * ROW_H * pane.scale)
+                        log("row without conflict has no tooltip text: \(pane.view(pane.tableBody, stringForToolTip: 0, point: pt, userData: nil).isEmpty)")
+                    }
+                }
+                if steps[i].0 == "error-box" {
+                    log("error box showing: \(state.errorAlert != nil), as a sheet: \(state.errorAlert?.window.sheetParent != nil), no fading toast: \(m.toast == nil), in log: \(m.log.last?.kind == .error)")
+                }
+                if steps[i].0 == "message-log" {
+                    log("box closed: \(state.errorAlert == nil && m.pendingError == nil), message log open: \(m.conflictsOpen && m.issuesTab == .messages), entries \(m.log.count), errors \(m.errorCount)")
                 }
                 let path = dir + "/\(String(format: "%02d", i + 1))-\(steps[i].0).png"
                 let ok = snapshot(path)

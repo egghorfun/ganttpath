@@ -282,7 +282,9 @@ struct ToolbarView: View {
             .fixedSize()
             .padding(.horizontal, 8)
             TBGroup(last: true) {
-                TB(icon: "warn", label: String(n), help: n > 0 ? "\(plural(n, "conflict")) - click to list them" : "No conflicts", on: m.conflictsOpen, warn: n > 0) { m.conflictsOpen.toggle() }
+                TB(icon: "warn", label: String(n), help: n > 0 ? "\(plural(n, "conflict")) - click to list them" : "No conflicts", on: m.conflictsOpen && m.issuesTab == .conflicts, warn: n > 0) {
+                    if m.conflictsOpen && m.issuesTab == .conflicts { m.conflictsOpen = false } else { m.showIssues(.conflicts) }
+                }
                 TBMenu(icon: "settings", label: "Project", help: "Project settings, calendars, baselines, columns, colours, templates") { ProjectMenu() }
                 TB(icon: "panel", help: "Task information panel (⌥⌘I)", on: m.inspectorOpen) {
                     m.inspectorOpen.toggle(); let v = m.inspectorOpen; state.updatePrefs { $0.inspectorOpen = v }

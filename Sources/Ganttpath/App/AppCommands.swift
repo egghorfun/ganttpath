@@ -87,7 +87,12 @@ struct AppCommands: Commands {
             Button(m.inspectorOpen ? "Hide Task Panel" : "Show Task Panel") {
                 m.inspectorOpen.toggle(); let v = m.inspectorOpen; state.updatePrefs { $0.inspectorOpen = v }
             }.keyboardShortcut("i", modifiers: [.command, .option])
-            Button(m.conflictsOpen ? "Hide Conflicts List" : "Show Conflicts List") { m.conflictsOpen.toggle() }.keyboardShortcut("c", modifiers: [.command, .option])
+            Button(m.conflictsOpen && m.issuesTab == .conflicts ? "Hide Scheduling Conflicts" : "Show Scheduling Conflicts") {
+                if m.conflictsOpen && m.issuesTab == .conflicts { m.conflictsOpen = false } else { m.showIssues(.conflicts) }
+            }.keyboardShortcut("c", modifiers: [.command, .option])
+            Button(m.conflictsOpen && m.issuesTab == .messages ? "Hide Message Log" : "Show Message Log") {
+                if m.conflictsOpen && m.issuesTab == .messages { m.conflictsOpen = false } else { m.showIssues(.messages) }
+            }.keyboardShortcut("l", modifiers: [.command, .option])
             Toggle("Progress Line", isOn: Binding(get: { m.progressLine }, set: { v in m.progressLine = v; state.updatePrefs { $0.progressLine = v } }))
             Button("Toggle Dark Mode") { state.cycleTheme() }.keyboardShortcut("d", modifiers: [.command, .shift])
             Divider()

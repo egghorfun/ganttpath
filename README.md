@@ -57,3 +57,10 @@ the workflow builds with `GP_MACOS_MIN` set to the runner's SDK version.
 - PDFs are drawn with CoreGraphics instead of Chromium's print-to-PDF. The layout is the same (same paper sizes, scale, margins, columns,
   header and footer), but text is placed with CoreText metrics, so line breaks and ellipses can differ by a character.
 - View > Text Size scales the table, chart, diagrams and the app's text. The JavaScript app zoomed the whole web page.
+- Errors, conflicts and messages work as they do in Microsoft Project, not as they did in the JavaScript app:
+  - An error opens a message box that stays until OK is pressed. The JavaScript app showed it for a few seconds at the bottom of the window.
+  - Every message of the session goes to a **Message Log**, a tab of the pane at the bottom of the window (next to **Scheduling
+    Conflicts**). Open it from View > Show Message Log (⌥⌘L), from the status bar, or with the box's "Show Message Log" button. The log
+    can be copied or cleared.
+  - Rest the pointer on a task row or bar that has a ⚠ scheduling conflict to see what is wrong. On a summary row, the tooltip lists the
+    conflicts of the tasks below it.

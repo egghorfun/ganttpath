@@ -28,7 +28,7 @@ struct ContentView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if m.conflictsOpen { ConflictsList().frame(maxHeight: 220) }
+                    if m.conflictsOpen { IssuesPane().frame(height: 220 * state.uiScale) }
                 }
                 if m.inspectorOpen {
                     Divider()
@@ -46,6 +46,7 @@ struct ContentView: View {
         .alert(state.alert?.title ?? "", isPresented: Binding(get: { state.alert != nil }, set: { if !$0 { state.alert = nil } })) {
             Button("OK") { state.alert = nil }
         } message: { Text(state.alert?.message ?? "") }
+        .onChange(of: m.pendingError?.id) { _, _ in state.presentPendingError() }
         .onAppear { state.systemDark = scheme == .dark }
         .onChange(of: scheme) { _, v in state.systemDark = v == .dark }
         .navigationTitle(m.windowTitle)
@@ -209,11 +210,22 @@ struct StatusBar: View {
         let t = state.theme
         HStack(spacing: 14) {
             ForEach(Array(m.statusParts.enumerated()), id: \.offset) { _, p in
-                Text(p.text)
+                let text = Text(p.text)
                     .foregroundStyle(p.style == "bad" ? Color(nsColor: (t.c["conflict"] ?? .black).ns) : p.style == "crit" ? Color(nsColor: (t.c["critical"] ?? .black).ns) : Color.secondary)
                     .fontWeight(p.style == "bad" ? .semibold : .regular)
+                if p.text.contains("conflict") {
+                    Button { m.showIssues(.conflicts) } label: { text.underline(p.style == "bad") }
+                        .buttonStyle(.plain).help("Show the scheduling conflicts")
+                } else { text }
             }
             Spacer()
+            let errors = m.errorCount
+            Button { m.showIssues(.messages) } label: {
+                Text(errors > 0 ? "⚠ \(plural(errors, "error")) · Message Log" : "Message Log (\(m.log.count))")
+                    .foregroundStyle(errors > 0 ? Color(nsColor: (t.c["conflict"] ?? .black).ns) : Color.secondary)
+                    .underline()
+            }
+            .buttonStyle(.plain).help("Every message shown in this session")
             Text(m.saveStatusText).foregroundStyle(.secondary)
         }
         .font(.system(size: 11.5 * state.uiScale))
@@ -245,43 +257,86 @@ struct ToastView: View {
     }
 }
 
-struct ConflictsList: View {
+/// The pane at the bottom of the window, with two tabs: the scheduling conflicts of the project, and the message log (every
+/// message shown in this session, newest first). A row with a task goes to that task.
+struct IssuesPane: View {
     @Environment(AppState.self) private var state
-    static let TYPE_LABEL = ["link": "Broken link", "constraint": "Constraint", "deadline": "Deadline", "calendar": "Calendar", "slack": "Negative slack", "cycle": "Circular"]
+    static let TYPE_LABEL = CONFLICT_TYPE_LABEL
+
+    func goTo(_ uid: Int) {
+        let m = state.model
+        guard m.index(of: uid) != nil else { m.say("That task is no longer in the project."); return }
+        m.selectOnly(uid)
+        m.tab = .gantt
+        state.gantt?.view?.scrollToTaskBar(uid: uid)
+    }
+
     var body: some View {
         let m = state.model
         let n = m.sched.conflicts.count
         let bad = Color(nsColor: (state.theme.c["conflict"] ?? .black).ns)
         VStack(spacing: 0) {
-            Rectangle().fill(bad).frame(height: 2)
+            Rectangle().fill(n > 0 || m.errorCount > 0 ? bad : Color.secondary.opacity(0.4)).frame(height: 2)
             HStack(spacing: 10) {
-                Text(n > 0 ? "⚠ \(plural(n, "conflict"))" : "No conflicts").fontWeight(.semibold).foregroundStyle(n > 0 ? bad : Color.primary)
-                Text(n > 0 ? "Click a row to jump to the task." : "All links, constraints and deadlines can be met.").foregroundStyle(.secondary)
+                Picker("", selection: Binding(get: { m.issuesTab }, set: { m.issuesTab = $0 })) {
+                    Text(n > 0 ? "⚠ Scheduling Conflicts (\(n))" : "Scheduling Conflicts (0)").tag(IssuesTab.conflicts)
+                    Text(m.errorCount > 0 ? "Message Log (\(m.log.count), \(plural(m.errorCount, "error")))" : "Message Log (\(m.log.count))").tag(IssuesTab.messages)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                if m.issuesTab == .conflicts {
+                    Text(n > 0 ? "Click a row to go to the task. Rest the pointer on a task with ⚠ to see its conflicts." : "All links, constraints and deadlines can be met.")
+                        .foregroundStyle(.secondary).lineLimit(1)
+                } else {
+                    Text(m.log.isEmpty ? "No messages yet." : "Newest first. Click a row to go to its task.").foregroundStyle(.secondary).lineLimit(1)
+                }
                 Spacer()
+                if m.issuesTab == .messages {
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(m.logText, forType: .string)
+                    }.controlSize(.small).disabled(m.log.isEmpty)
+                    Button("Clear") { m.clearLog() }.controlSize(.small).disabled(m.log.isEmpty)
+                }
                 Button("Close") { m.conflictsOpen = false }.controlSize(.small)
             }
             .padding(.horizontal, 12).padding(.vertical, 6)
             Divider()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(m.sched.conflicts.enumerated()), id: \.offset) { _, cf in
-                        if cf.index < m.project.tasks.count {
-                            let t = m.project.tasks[cf.index]
-                            Button {
-                                m.selectOnly(t.uid)
-                                m.tab = .gantt
-                                state.gantt?.view?.scrollToTaskBar(uid: t.uid)
-                            } label: {
+                    if m.issuesTab == .conflicts {
+                        ForEach(Array(m.sched.conflicts.enumerated()), id: \.offset) { _, cf in
+                            if cf.index < m.project.tasks.count {
+                                let t = m.project.tasks[cf.index]
+                                Button { goTo(t.uid) } label: {
+                                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                        Text((Self.TYPE_LABEL[cf.type] ?? cf.type).uppercased()).font(.system(size: 11, weight: .bold)).foregroundStyle(bad).frame(width: 118, alignment: .leading)
+                                        Text("\(cf.index + 1)  \(t.name.isEmpty ? "(unnamed)" : t.name)").lineLimit(1).frame(width: 240, alignment: .leading)
+                                        Text(cf.message)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 12).padding(.vertical, 4)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                Divider()
+                            }
+                        }
+                    } else {
+                        ForEach(m.log.reversed()) { e in
+                            Button { if let u = e.uid { goTo(u) } } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                    Text((Self.TYPE_LABEL[cf.type] ?? cf.type).uppercased()).font(.system(size: 11, weight: .bold)).foregroundStyle(bad).frame(width: 118, alignment: .leading)
-                                    Text("\(cf.index + 1)  \(t.name.isEmpty ? "(unnamed)" : t.name)").lineLimit(1).frame(width: 240, alignment: .leading)
-                                    Text(cf.message)
+                                    Text(stampText(e.time)).foregroundStyle(.secondary).monospacedDigit().frame(width: 128, alignment: .leading)
+                                    Text(e.kind == .error ? "⚠ ERROR" : "INFORMATION").font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(e.kind == .error ? bad : Color.secondary).frame(width: 96, alignment: .leading)
+                                    Text(e.taskLabel ?? "").lineLimit(1).frame(width: 220, alignment: .leading)
+                                    Text(e.message)
                                     Spacer()
                                 }
                                 .padding(.horizontal, 12).padding(.vertical, 4)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .help(e.message)
                             Divider()
                         }
                     }

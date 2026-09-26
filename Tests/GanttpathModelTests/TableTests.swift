@@ -17,7 +17,7 @@ import Testing
         m.click(10, "duration")
         #expect(m.paste(txt!))
         #expect([10, 11, 12].map { m.t[$0 - 1].dur } == [3, 4, 5].map { t0[$0 - 1].dur })
-        #expect(m.toast!.message.contains("3 cells pasted"))
+        #expect(m.log.last!.message.contains("3 cells pasted"))
         m.undo()
         #expect(m.t.map { $0.dur } == t0.map { $0.dur }, "one undo puts all three back")
     }
@@ -48,7 +48,7 @@ import Testing
         m.click(3, "name")
         m.paste("Good name\tsoon\nSecond name\t2d\n")
         #expect(m.t[2].name == "Good name" && m.t[2].dur == t0[2].dur && m.t[3].dur == 960)
-        let msg = m.toast!.message
+        let msg = m.log.last!.message
         #expect(msg.contains("not accepted") && msg.contains("Duration of row 3") && msg.contains("not a duration"), "\(msg)")
     }
 
@@ -59,7 +59,7 @@ import Testing
         m.paste("Last one\nExtra 1\nExtra 2")
         #expect(m.t.count == n0 + 2)
         #expect(m.t.suffix(3).map { $0.name } == ["Last one", "Extra 1", "Extra 2"])
-        #expect(m.toast!.message.contains("2 new tasks added at the end"))
+        #expect(m.log.last!.message.contains("2 new tasks added at the end"))
         m.undo()
         #expect(m.t.count == n0, "one undo step removes the new rows too")
     }
@@ -147,7 +147,7 @@ import Testing
         let text = m.copy(cut: true)!
         m.click(3, "id")
         m.paste(text)
-        #expect(m.toast!.message.lowercased().contains("outside the rows you cut"))
+        #expect(m.log.last!.message.lowercased().contains("outside the rows you cut"))
     }
 
     @Test func copyAndPasteRowsMakesNewTasksBelow() {
@@ -161,7 +161,7 @@ import Testing
         #expect(m.t.count == t0.count + 6)
         #expect(m.t[6..<12].map { $0.name } == t0[0..<6].map { $0.name })
         #expect(m.t[6..<12].allSatisfy { n in !t0.contains { $0.uid == n.uid } })
-        #expect(m.toast!.message.contains("6 rows pasted"))
+        #expect(m.log.last!.message.contains("6 rows pasted"))
     }
 
     @Test func insertRowsAboveBelowAndDelete() {
@@ -193,18 +193,18 @@ import Testing
     @Test func badTextKeepsTheEditorOpenWithAMessage() {
         let (m, _, _) = makeModel()
         #expect(!m.commitEdit(uid: m.uid(3), col: "duration", text: "abc"))
-        #expect(m.toast?.kind == .error)
+        #expect(m.log.last?.kind == .error)
         #expect(m.beginEdit(uid: m.uid(1), col: "duration") == nil, "a summary's duration cannot be edited")
-        #expect(m.toast!.message.contains("summary task takes its dates"))
+        #expect(m.log.last!.message.contains("summary task takes its dates"))
         #expect(m.beginEdit(uid: m.uid(1), col: "totalSlack") == nil)
-        #expect(m.toast!.message.contains("calculated"))
+        #expect(m.log.last!.message.contains("calculated"))
     }
 
     @Test func typingAStartOnAnAutomaticTaskExplainsTheConstraint() {
         let (m, _, _) = makeModel()
         #expect(m.commitEdit(uid: m.uid(3), col: "start", text: "10-Oct-2026")) // a Saturday
         #expect(m.t[2].constraint.type == "SNET")
-        #expect(m.toast!.message.contains("Start No Earlier Than") && m.toast!.message.contains("day off"))
+        #expect(m.log.last!.message.contains("Start No Earlier Than") && m.log.last!.message.contains("day off"))
     }
 
     @Test func wbsEditMovesTheRowAndSaysWhere() {
@@ -213,10 +213,10 @@ import Testing
         #expect(m.commitEdit(uid: uid, col: "wbs", text: "2.1"))
         let i = m.index(of: uid)!
         #expect(m.sched.tasks[i].wbs == "2.1")
-        #expect(m.toast!.message.hasPrefix("Moved"))
+        #expect(m.log.last!.message.hasPrefix("Moved"))
         m.view.search = "a"
         #expect(!m.commitEdit(uid: uid, col: "wbs", text: "1.1"))
-        #expect(m.toast!.message.contains("Clear the sort, group, filter or search first"))
+        #expect(m.log.last!.message.contains("Clear the sort, group, filter or search first"))
     }
 
     @Test func keyboardSelectAllBoldAndEscape() {

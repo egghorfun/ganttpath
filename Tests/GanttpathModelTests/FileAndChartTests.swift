@@ -44,7 +44,7 @@ import Testing
         #expect(m2.open(path: xml, prefs: store2))
         #expect(m2.dirty && m2.importReport != nil)
         #expect(!m2.open(path: dir + "/missing.gpath"))
-        #expect(m2.toast!.kind == .error)
+        #expect(m2.log.last!.kind == .error)
     }
 
     @Test func autosaveFolderBelongsToItsProjectFolder() {
