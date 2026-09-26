@@ -32,7 +32,6 @@ enum SmokeTest {
         }
         let m = state.model
         // toolbar items: 0-4 row-1 groups, 5 search/filter group, 6 right-hand group
-        log("row 1 right part, ink pixels at start (1,024 wide; buttons expected there): \(row1RightInk(state))")
         log("toolbar rows (expected [[0, 1, 2, 3, 4, 6], [5]] when wide enough): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible }?.frame.width ?? 0))")
         log("tasks \(m.project.tasks.count), conflicts \(m.sched.conflictCount), finish \(m.sched.projectFinish ?? "-")")
         var madeConflict = false
@@ -120,6 +119,9 @@ enum SmokeTest {
                     }
                     log("table header unchanged while the chart scrolls (expected true): \(tableHeaderStaysPut(state))")
                 }
+                if steps[i].0 == "gantt" {
+                    log("right-hand group shown at \(ToolbarRows.trailingFrame) (1,024 window: x about 821)")
+                }
                 if steps[i].0 == "row-tooltip", let pane = state.gantt?.view {
                     pane.relayout()
                     let rows = pane.issueTipRows
@@ -139,11 +141,11 @@ enum SmokeTest {
                 }
                 if steps[i].0 == "narrow-toolbar" {
                     NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.contentView?.layoutSubtreeIfNeeded()
-                    log("row 1 right part, ink pixels at 900 (expected about 0): \(row1RightInk(state))")
+                    log("right-hand group shown at \(ToolbarRows.trailingFrame) (laid out for 900: x about 697)")
                     log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
                 }
                 if steps[i].0 == "restore-width" {
-                    log("row 1 right part, ink pixels after widening to 1,024 (buttons expected there, well above 0): \(row1RightInk(state))")
+                    log("right-hand group shown at \(ToolbarRows.trailingFrame) (laid out for 1,024: x about 821; for 900: about 697); follows the window: \(abs(ToolbarRows.trailingFrame.minX - 821) < 3)")
                     log("toolbar layout calls around the resize: \(ToolbarRows.history.suffix(14).joined(separator: " | "))")
                     log("after widening again: toolbar last width offered \(ToolbarRows.lastProposed), rows \(ToolbarRows.lastRows), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), status bar width \(StatusBar.lastWidth); toolbar follows the window (offered width = status bar width - 20 px padding): \(ToolbarRows.lastProposed == StatusBar.lastWidth - 20)")
                 }
@@ -219,26 +221,6 @@ enum SmokeTest {
         pane.displayIfNeeded()
         let after = grab()
         return before != nil && before == after
-    }
-
-    /// How many pixels of toolbar row 1, right part (x 740...990), differ clearly from the toolbar colour. With the toolbar laid
-    /// out for a 1,024-wide window the Link/Unlink/Auto/Manual buttons are there; laid out for 900 that part of row 1 is empty.
-    static func row1RightInk(_ state: AppState) -> Int {
-        guard let win = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }), let cv = win.contentView else { return -1 }
-        cv.layoutSubtreeIfNeeded()
-        let top: CGFloat = 8, h: CGFloat = 24 // inside row 1 (the toolbar has 6 px padding above 28-px buttons)
-        let rect = NSRect(x: 740, y: cv.isFlipped ? top : cv.bounds.height - top - h, width: 250, height: h)
-        guard let rep = cv.bitmapImageRepForCachingDisplay(in: rect) else { return -1 }
-        cv.cacheDisplay(in: rect, to: rep)
-        let panel = state.theme.panel
-        var n = 0
-        for y in 0..<rep.pixelsHigh {
-            for x in 0..<rep.pixelsWide {
-                guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
-                if abs(c.redComponent - panel.r) > 0.16 || abs(c.greenComponent - panel.g) > 0.16 || abs(c.blueComponent - panel.b) > 0.16 { n += 1 }
-            }
-        }
-        return n
     }
 
     /// A picture of the key window (and of a sheet over it), drawn by AppKit.

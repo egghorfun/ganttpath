@@ -138,6 +138,8 @@ struct ToolbarRows: Layout {
     nonisolated(unsafe) static var lastRows: [[Int]] = []
     nonisolated(unsafe) static var lastInfo = ""
     nonisolated(unsafe) static var lastProposed = 0
+    /// Where the right-hand group is shown, in window coordinates (from SwiftUI's final geometry; for the smoke test).
+    nonisolated(unsafe) static var trailingFrame = CGRect.zero
     var hSpacing: CGFloat = 4
     var vSpacing: CGFloat = 2
 
@@ -287,6 +289,7 @@ struct ToolbarView: View {
                 }
                 TB(icon: state.isDark ? "sun" : "moon", help: "Light or dark mode (⇧⌘D)") { state.cycleTheme() }
             }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { ToolbarRows.trailingFrame = $0 }
             .toolbarSlot(.trailing)
         }
         .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 5)
