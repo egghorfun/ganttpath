@@ -122,57 +122,42 @@ struct TBMenu<Items: View>: View {
 
 // MARK: - wrapping layout
 
-private struct FlexSpacerKey: LayoutValueKey { static let defaultValue = false }
+private struct ToolbarRoleKey: LayoutValueKey { static let defaultValue = ToolbarRole.main }
 
 extension View {
-    /// In a ToolbarFlow, takes the rest of its row (the JavaScript toolbar's .tb-spacer).
-    func flexSpacer() -> some View { layoutValue(key: FlexSpacerKey.self, value: true) }
+    /// Where a group goes in the toolbar (see arrangeToolbar): row 1 (the default), the right edge of row 1, or row 2.
+    func toolbarRole(_ r: ToolbarRole) -> some View { layoutValue(key: ToolbarRoleKey.self, value: r) }
 }
 
-/// Lays items out left to right and starts a new row when the next one does not fit (flex-wrap), items centred in their row.
-struct ToolbarFlow: Layout {
+/// Places the toolbar's groups in rows as arrangeToolbar decides, items centred in their row.
+struct ToolbarRows: Layout {
+    /// The rows last placed (item indexes), for the smoke test.
+    @MainActor static var lastRows: [[Int]] = []
     var hSpacing: CGFloat = 4
     var vSpacing: CGFloat = 2
 
-    private func rows(_ width: CGFloat, _ subviews: Subviews) -> [[(Int, CGSize)]] {
-        var rows: [[(Int, CGSize)]] = [[]]
-        var x: CGFloat = 0
-        for (i, v) in subviews.enumerated() {
-            let spacer = v[FlexSpacerKey.self]
-            let size = spacer ? CGSize(width: 0, height: 0) : v.sizeThatFits(.unspecified)
-            if !rows[rows.count - 1].isEmpty && x + size.width > width && !spacer {
-                rows.append([])
-                x = 0
-            }
-            rows[rows.count - 1].append((i, size))
-            x += size.width + hSpacing
-        }
-        return rows
+    private func rows(_ width: CGFloat, _ subviews: Subviews) -> ([[(index: Int, x: Double)]], [CGSize]) {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let r = arrangeToolbar(widths: sizes.map { Double($0.width) }, roles: subviews.map { $0[ToolbarRoleKey.self] },
+                               width: Double(width), spacing: Double(hSpacing))
+        return (r, sizes)
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 10_000
-        let rs = rows(width, subviews)
-        let h = rs.reduce(CGFloat(0)) { $0 + ($1.map { $0.1.height }.max() ?? 0) } + vSpacing * CGFloat(max(0, rs.count - 1))
-        return CGSize(width: proposal.width ?? rs.map { r in r.reduce(0) { $0 + $1.1.width + hSpacing } }.max() ?? 0, height: h)
+        let (rs, sizes) = rows(width, subviews)
+        let h = rs.reduce(CGFloat(0)) { $0 + ($1.map { sizes[$0.index].height }.max() ?? 0) } + vSpacing * CGFloat(max(0, rs.count - 1))
+        return CGSize(width: proposal.width ?? rs.map { r in r.map { CGFloat($0.x) + sizes[$0.index].width }.max() ?? 0 }.max() ?? 0, height: h)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let (rs, sizes) = rows(bounds.width, subviews)
+        Self.lastRows = rs.map { $0.map { $0.index } }
         var y = bounds.minY
-        for row in rows(bounds.width, subviews) {
-            let rowH = row.map { $0.1.height }.max() ?? 0
-            let used = row.reduce(CGFloat(0)) { $0 + $1.1.width } + hSpacing * CGFloat(max(0, row.count - 1))
-            let spacers = row.filter { subviews[$0.0][FlexSpacerKey.self] }.count
-            let extra = spacers > 0 ? max(0, bounds.width - used) / CGFloat(spacers) : 0
-            var x = bounds.minX
-            for (i, size) in row {
-                if subviews[i][FlexSpacerKey.self] {
-                    subviews[i].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: extra, height: rowH))
-                    x += extra + hSpacing
-                    continue
-                }
-                subviews[i].place(at: CGPoint(x: x, y: y + (rowH - size.height) / 2), proposal: ProposedViewSize(size))
-                x += size.width + hSpacing
+        for row in rs {
+            let rowH = row.map { sizes[$0.index].height }.max() ?? 0
+            for (i, x) in row {
+                subviews[i].place(at: CGPoint(x: bounds.minX + CGFloat(x), y: y + (rowH - sizes[i].height) / 2), proposal: ProposedViewSize(sizes[i]))
             }
             y += rowH + vSpacing
         }
@@ -207,7 +192,7 @@ struct ToolbarView: View {
         let has = !m.selection.isEmpty
         let onGantt = m.tab == .gantt
         let n = m.sched.conflictCount
-        ToolbarFlow(hSpacing: 4, vSpacing: 2) {
+        ToolbarRows(hSpacing: 4, vSpacing: 2) {
             TBGroup {
                 TB(icon: "new", label: "New", help: "New project (⌘N)") { state.newProjectCommand() }
                 TB(icon: "open", label: "Open", help: "Open or import (⌘O)") { state.openCommand() }
@@ -270,17 +255,7 @@ struct ToolbarView: View {
                     TB(icon: "close", label: "Clear", help: "Remove search, filter, sort and group") { m.view = ViewState(); search = "" }
                 }
             }
-            Color.clear.frame(height: 28).flexSpacer()
-            HStack(spacing: 0) {
-                if m.dirty {
-                    Circle().fill(Color(nsColor: (t.c["near"] ?? .black).ns)).frame(width: 7, height: 7).padding(.trailing, 6).help("Unsaved changes")
-                }
-                Text(m.project.name).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.tail)
-                    .foregroundStyle(Color(nsColor: t.text.ns))
-            }
-            .frame(maxWidth: 260)
-            .fixedSize()
-            .padding(.horizontal, 8)
+            .toolbarRole(.secondLine)
             TBGroup(last: true) {
                 TB(icon: "warn", label: String(n), help: n > 0 ? "\(plural(n, "conflict")) - click to list them" : "No conflicts", on: m.conflictsOpen && m.issuesTab == .conflicts, warn: n > 0) {
                     if m.conflictsOpen && m.issuesTab == .conflicts { m.conflictsOpen = false } else { m.showIssues(.conflicts) }
@@ -291,6 +266,7 @@ struct ToolbarView: View {
                 }
                 TB(icon: state.isDark ? "sun" : "moon", help: "Light or dark mode (⇧⌘D)") { state.cycleTheme() }
             }
+            .toolbarRole(.trailing)
         }
         .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 5)
         .background(Color(nsColor: t.panel.ns))

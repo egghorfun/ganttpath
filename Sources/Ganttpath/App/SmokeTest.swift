@@ -26,8 +26,11 @@ enum SmokeTest {
             state.sheet = nil
         }
         let m = state.model
+        // toolbar items: 0-4 row-1 groups, 5 search/filter group, 6 right-hand group
+        log("toolbar rows (expected [[0, 1, 2, 3, 4, 6], [5]] when wide enough): \(ToolbarRows.lastRows), window width \(Int(NSApp.windows.first { $0.isVisible }?.frame.width ?? 0))")
         log("tasks \(m.project.tasks.count), conflicts \(m.sched.conflictCount), finish \(m.sched.projectFinish ?? "-")")
         var madeConflict = false
+        var savedFrame: NSRect? = nil
         let steps: [(String, () -> Void)] = [
             ("gantt", { m.tab = .gantt; m.selectOnly(m.project.tasks.count > 2 ? m.project.tasks[2].uid : nil) }),
             ("inspector", { m.inspectorOpen = true }),
@@ -50,7 +53,16 @@ enum SmokeTest {
                 // press "Show Message Log" on the box
                 if let a = state.errorAlert, let parent = a.window.sheetParent { parent.endSheet(a.window, returnCode: .alertSecondButtonReturn) }
             }),
-            ("network", { m.conflictsOpen = false; m.tab = .network }),
+            ("narrow-toolbar", {
+                if let w = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }) {
+                    savedFrame = w.frame
+                    w.setFrame(NSRect(x: w.frame.minX, y: w.frame.minY, width: 700, height: w.frame.height), display: true)
+                }
+            }),
+            ("network", {
+                if let f = savedFrame, let w = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }) { w.setFrame(f, display: true) }
+                m.conflictsOpen = false; m.tab = .network
+            }),
             ("timeline", { m.tab = .timeline }),
             ("cpm", { m.tab = .cpm }),
             ("scurve", { m.tab = .scurve }),
@@ -116,6 +128,12 @@ enum SmokeTest {
                         let pt = NSPoint(x: 40, y: (Double(clean) + 0.5) * ROW_H * pane.scale)
                         log("row without conflict has no tooltip text: \(pane.view(pane.tableBody, stringForToolTip: 0, point: pt, userData: nil).isEmpty)")
                     }
+                }
+                if steps[i].0 == "narrow-toolbar" {
+                    log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
+                }
+                if steps[i].0 == "network" {
+                    log("toolbar rows after restoring the width: \(ToolbarRows.lastRows)")
                 }
                 if steps[i].0 == "error-box" {
                     log("error box showing: \(state.errorAlert != nil), as a sheet: \(state.errorAlert?.window.sheetParent != nil), no fading toast: \(m.toast == nil), in log: \(m.log.last?.kind == .error)")

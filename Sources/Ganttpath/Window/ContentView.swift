@@ -219,13 +219,6 @@ struct StatusBar: View {
                 } else { text }
             }
             Spacer()
-            let errors = m.errorCount
-            Button { m.showIssues(.messages) } label: {
-                Text(errors > 0 ? "⚠ \(plural(errors, "error")) · Message Log" : "Message Log (\(m.log.count))")
-                    .foregroundStyle(errors > 0 ? Color(nsColor: (t.c["conflict"] ?? .black).ns) : Color.secondary)
-                    .underline()
-            }
-            .buttonStyle(.plain).help("Every message shown in this session")
             Text(m.saveStatusText).foregroundStyle(.secondary)
         }
         .font(.system(size: 11.5 * state.uiScale))

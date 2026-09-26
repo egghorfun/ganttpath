@@ -60,7 +60,11 @@ the workflow builds with `GP_MACOS_MIN` set to the runner's SDK version.
 - Errors, conflicts and messages work as they do in Microsoft Project, not as they did in the JavaScript app:
   - An error opens a message box that stays until OK is pressed. The JavaScript app showed it for a few seconds at the bottom of the window.
   - Every message of the session goes to a **Message Log**, a tab of the pane at the bottom of the window (next to **Scheduling
-    Conflicts**). Open it from View > Show Message Log (⌥⌘L), from the status bar, or with the box's "Show Message Log" button. The log
+    Conflicts**). Open it from View > Show Message Log (⌥⌘L), from the ⚠ toolbar button (then
+    the Message Log tab), or with the box's "Show Message Log" button. The log
     can be copied or cleared.
   - Rest the pointer on a task row or bar that has a ⚠ scheduling conflict to see what is wrong. On a summary row, the tooltip lists the
     conflicts of the tasks below it.
+- The toolbar has no project title (the name is in the window's title bar). The conflicts, Project, task panel and light/dark buttons
+  sit at the right end of the first row; search, filter, sort, group and columns are on the second row. In a narrow window the
+  right-hand buttons move to the end of the second row.
