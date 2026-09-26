@@ -335,7 +335,8 @@ struct GanttpathApp: App {
                     delegate.state = state
                     let pending = delegate.pendingOpen
                     delegate.pendingOpen = []
-                    if let f = pending.first { state.open(f) } else { state.sheet = .start }
+                    if SmokeTest.dir != nil { SmokeTest.run(state) }
+                    else if let f = pending.first { state.open(f) } else { state.sheet = .start }
                 }
         }
         .defaultSize(width: 1440, height: 900)

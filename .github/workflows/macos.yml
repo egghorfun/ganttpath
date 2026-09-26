@@ -39,6 +39,20 @@ jobs:
           done
       - name: Build the app bundle
         run: Packaging/build-app.sh
+      - name: Run the app (smoke test) and show what it drew
+        run: |
+          mkdir -p smoke
+          GP_SMOKE_DIR="$PWD/smoke" GP_SMOKE_FILE="$PWD/Tests/GanttpathCoreTests/Fixtures/Ganttpath_Sample_Pump_Station.gpath" \
+            perl -e 'alarm 180; exec @ARGV' dist/Ganttpath.app/Contents/MacOS/Ganttpath || echo "app exit code $?"
+          echo "=== report"; cat smoke/report.txt || true
+          ls -la smoke
+          ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i ganttpath && head -80 ~/Library/Logs/DiagnosticReports/*anttpath* || echo "no crash report"
+          for f in smoke/*.png; do
+            sips -Z 1100 -s format jpeg -s formatOptions 60 "$f" --out "${f%.png}.jpg" >/dev/null
+            echo "=== IMG $(basename "${f%.png}.jpg")"
+            base64 -b 160 -i "${f%.png}.jpg"
+            echo "=== END"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -47,3 +61,4 @@ jobs:
             dist/*.zip
             build.log
             test.log
+            smoke/*
