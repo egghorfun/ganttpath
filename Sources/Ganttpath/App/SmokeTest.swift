@@ -35,6 +35,7 @@ enum SmokeTest {
             ("timeline", { m.tab = .timeline }),
             ("cpm", { m.tab = .cpm }),
             ("scurve", { m.tab = .scurve }),
+            ("zoom-scroll", { m.tab = .gantt; state.gantt?.view?.setZoom(48) }),
             ("dark", { m.tab = .gantt; state.updatePrefs { $0.theme = "dark" }; state.applyAppearance() }),
             ("settings-dialog", { state.updatePrefs { $0.theme = "light" }; state.applyAppearance(); state.sheet = .settings }),
             ("calendars-dialog", { state.sheet = .calendars }),
@@ -70,6 +71,16 @@ enum SmokeTest {
             }
             steps[i].1()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                if steps[i].0 == "zoom-scroll" {
+                    // first without clipping (as the first build drew): the check must notice; then as built
+                    if let h = state.gantt?.view?.chartHeader {
+                        ChartHeaderView.testWithoutClipping = true; h.clipsToBounds = false
+                        log("check sees the old overlap (expected false): \(tableHeaderStaysPut(state))")
+                        ChartHeaderView.testWithoutClipping = false; h.clipsToBounds = true
+                        state.gantt?.view?.scrollToStart()
+                    }
+                    log("table header unchanged while the chart scrolls (expected true): \(tableHeaderStaysPut(state))")
+                }
                 let path = dir + "/\(String(format: "%02d", i + 1))-\(steps[i].0).png"
                 let ok = snapshot(path)
                 log("snapshot \(steps[i].0): \(ok) \(ok ? analyse(path, state) : "")")
@@ -104,6 +115,27 @@ enum SmokeTest {
             i += 4
         }
         return "\(w)x\(h), not background \(other * 100 / max(1, w * h))%, colours \(colours.count), task-colour px \(task), critical px \(crit), conflict px \(conflict)"
+    }
+
+    /// Nothing of the chart may be drawn over the task table: the table's heading and first rows must look the same before and
+    /// after the chart is scrolled sideways.
+    static func tableHeaderStaysPut(_ state: AppState) -> Bool {
+        guard let pane = state.gantt?.view else { return false }
+        pane.layoutSubtreeIfNeeded()
+        let region = NSRect(x: 0, y: 0, width: pane.tableScroll.frame.width, height: min(pane.bounds.height, pane.tableHeader.frame.height + 120))
+        func grab() -> Data? {
+            guard let rep = pane.bitmapImageRepForCachingDisplay(in: region) else { return nil }
+            pane.cacheDisplay(in: region, to: rep)
+            return rep.representation(using: .png, properties: [:])
+        }
+        let before = grab()
+        var o = pane.chartScroll.contentView.bounds.origin
+        o.x += 1500
+        pane.chartScroll.contentView.scroll(to: o)
+        pane.chartScroll.reflectScrolledClipView(pane.chartScroll.contentView)
+        pane.displayIfNeeded()
+        let after = grab()
+        return before != nil && before == after
     }
 
     /// A picture of the key window (and of a sheet over it), drawn by AppKit.

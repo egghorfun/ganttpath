@@ -8,11 +8,14 @@ import GanttpathModel
 
 final class ChartHeaderView: FlippedView, PaneChild {
     weak var pane: GanttPaneView?
+    /// Only for the smoke test: draws without clipping, the way the first build did, to show the check can see the difference.
+    static var testWithoutClipping = false
 
     override func draw(_ dirtyRect: NSRect) {
         guard let p = pane, let l = p.layoutInfo, let ctx = NSGraphicsContext.current?.cgContext else { return }
         p.theme.headerBg.ns.setFill()
         bounds.fill()
+        if !ChartHeaderView.testWithoutClipping { ctx.clip(to: bounds) }
         let s = p.scale
         let wcal = projectCalendar(p.model.project)
         let d = ganttHeader(originDn: l.originDn, endDn: l.endDn, px: l.px, mondayFirst: p.model.project.settings.weekStartsMonday,

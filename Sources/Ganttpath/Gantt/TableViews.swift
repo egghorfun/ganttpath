@@ -16,6 +16,7 @@ final class TableHeaderView: FlippedView, PaneChild {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let p = pane, let ctx = NSGraphicsContext.current?.cgContext else { return }
+        ctx.clip(to: bounds)
         let s = p.scale
         p.theme.headerBg.ns.setFill()
         bounds.fill()

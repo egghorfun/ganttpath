@@ -6,8 +6,18 @@ import SwiftUI
 import GanttpathCore
 import GanttpathModel
 
+/// A view with y pointing down that never draws outside its own bounds. (Since macOS 14 an NSView does not clip its drawing
+/// by default; without this the scrolled time scale spills over the task table.)
 class FlippedView: NSView {
     override var isFlipped: Bool { true }
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        clipsToBounds = true
+    }
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        clipsToBounds = true
+    }
 }
 
 /// What the SwiftUI side and the menu bar ask the Gantt pane to do.
@@ -255,7 +265,7 @@ extension NSEvent {
 
 // MARK: - splitter
 
-final class SplitterView: NSView, PaneChild {
+final class SplitterView: FlippedView, PaneChild {
     weak var pane: GanttPaneView?
     private var startX: CGFloat = 0
     private var startW: CGFloat = 0
