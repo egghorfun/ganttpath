@@ -59,10 +59,10 @@ enum SmokeTest {
                     w.setFrame(NSRect(x: w.frame.minX, y: w.frame.minY, width: 700, height: w.frame.height), display: true)
                 }
             }),
-            ("network", {
+            ("restore-width", {
                 if let f = savedFrame, let w = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }) { w.setFrame(f, display: true) }
-                m.conflictsOpen = false; m.tab = .network
             }),
+            ("network", { m.conflictsOpen = false; m.tab = .network }),
             ("timeline", { m.tab = .timeline }),
             ("cpm", { m.tab = .cpm }),
             ("scurve", { m.tab = .scurve }),
@@ -132,6 +132,9 @@ enum SmokeTest {
                 if steps[i].0 == "narrow-toolbar" {
                     NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.contentView?.layoutSubtreeIfNeeded()
                     log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
+                }
+                if steps[i].0 == "restore-width" {
+                    log("after widening again: toolbar last width offered \(ToolbarRows.lastProposed), rows \(ToolbarRows.lastRows), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), status bar etc. share the same SwiftUI layout pass")
                 }
                 if steps[i].0 == "network" {
                     let w = NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }
