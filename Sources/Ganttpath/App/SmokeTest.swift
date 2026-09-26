@@ -31,11 +31,23 @@ enum SmokeTest {
             state.sheet = nil
         }
         let m = state.model
-        // toolbar items: 0-4 row-1 groups, 5 search/filter group, 6 right-hand group
-        log("toolbar rows (expected [[0, 1, 2, 3, 4, 6], [5]] when wide enough): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible }?.frame.width ?? 0))")
         log("tasks \(m.project.tasks.count), conflicts \(m.sched.conflictCount), finish \(m.sched.projectFinish ?? "-")")
         var madeConflict = false
         var savedFrame: NSRect? = nil
+        func mainWindow() -> NSWindow? { NSApp.windows.first { $0.isVisible && $0.sheetParent == nil } }
+        func resize(_ w: CGFloat) {
+            guard let win = mainWindow() else { return }
+            if savedFrame == nil { savedFrame = win.frame }
+            win.setFrame(NSRect(x: win.frame.minX, y: win.frame.minY, width: w, height: win.frame.height), display: true)
+        }
+        /// Where the right-hand toolbar group is shown: at the right edge (10 px padding), and on row 1 or not.
+        func toolbarCheck(_ what: String) {
+            let width = mainWindow()?.frame.width ?? 0
+            let t = ToolbarRows.trailingFrame, l = ToolbarRows.leadingFrame
+            let atRight = abs(t.maxX - (width - 10)) < 2
+            let onRow1 = abs(t.minY - l.minY) < 2
+            log("toolbar in a \(Int(width))-wide window: right-hand group at x \(Int(t.minX))...\(Int(t.maxX)), y \(Int(t.minY)) (row 1 at y \(Int(l.minY))); at the right edge: \(atRight), on row 1: \(onRow1)")
+        }
         let steps: [(String, () -> Void)] = [
             ("gantt", { m.tab = .gantt; m.selectOnly(m.project.tasks.count > 2 ? m.project.tasks[2].uid : nil) }),
             ("inspector", { m.inspectorOpen = true }),
@@ -58,17 +70,9 @@ enum SmokeTest {
                 // press "Show Message Log" on the box
                 if let a = state.errorAlert, let parent = a.window.sheetParent { parent.endSheet(a.window, returnCode: .alertSecondButtonReturn) }
             }),
-            ("narrow-toolbar", {
-                if let w = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }) {
-                    savedFrame = w.frame
-                    w.setFrame(NSRect(x: w.frame.minX, y: w.frame.minY, width: 700, height: w.frame.height), display: true)
-                }
-            }),
-            ("restore-width", {
-                ToolbarRows.note("-- widening now")
-                if let f = savedFrame, let w = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }) { w.setFrame(f, display: true) }
-                ToolbarRows.note("-- widened")
-            }),
+            ("narrow-toolbar", { resize(900) }),
+            ("wide-toolbar", { resize(1700) }),
+            ("restore-width", { if let f = savedFrame { mainWindow()?.setFrame(f, display: true) } }),
             ("network", { m.conflictsOpen = false; m.tab = .network }),
             ("timeline", { m.tab = .timeline }),
             ("cpm", { m.tab = .cpm }),
@@ -119,9 +123,7 @@ enum SmokeTest {
                     }
                     log("table header unchanged while the chart scrolls (expected true): \(tableHeaderStaysPut(state))")
                 }
-                if steps[i].0 == "gantt" {
-                    log("right-hand group shown at \(ToolbarRows.trailingFrame) (1,024 window: x about 821)")
-                }
+                if steps[i].0 == "gantt" { toolbarCheck("start") }
                 if steps[i].0 == "row-tooltip", let pane = state.gantt?.view {
                     pane.relayout()
                     let rows = pane.issueTipRows
@@ -139,33 +141,13 @@ enum SmokeTest {
                         log("row without conflict has no tooltip text: \(pane.view(pane.tableBody, stringForToolTip: 0, point: pt, userData: nil).isEmpty)")
                     }
                 }
-                if steps[i].0 == "narrow-toolbar" {
-                    NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.contentView?.layoutSubtreeIfNeeded()
-                    log("right-hand group shown at \(ToolbarRows.trailingFrame) (laid out for 900: x about 697)")
-                    log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
-                }
-                if steps[i].0 == "restore-width" {
-                    log("right-hand group shown at \(ToolbarRows.trailingFrame) (laid out for 1,024: x about 821; for 900: about 697); follows the window: \(abs(ToolbarRows.trailingFrame.minX - 821) < 3)")
-                    log("toolbar layout calls around the resize: \(ToolbarRows.history.suffix(14).joined(separator: " | "))")
-                    log("after widening again: toolbar last width offered \(ToolbarRows.lastProposed), rows \(ToolbarRows.lastRows), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), status bar width \(StatusBar.lastWidth); toolbar follows the window (offered width = status bar width - 20 px padding): \(ToolbarRows.lastProposed == StatusBar.lastWidth - 20)")
-                }
-                if steps[i].0 == "network" {
-                    log("toolbar layout calls since: \(ToolbarRows.history.suffix(8).joined(separator: " | "))")
-                    let w = NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }
-                    w?.contentView?.layoutSubtreeIfNeeded()
-                    w?.displayIfNeeded()
-                    log("toolbar rows after restoring the width: \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), window \(w.map { "\($0.frame)" } ?? "-"), content \(w?.contentView.map { "\($0.frame)" } ?? "-")")
-                }
-                if steps[i].0 == "timeline" {
-                    log("toolbar rows a step later: \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1))")
-                }
+                if ["narrow-toolbar", "wide-toolbar", "restore-width"].contains(steps[i].0) { toolbarCheck(steps[i].0) }
                 if steps[i].0 == "error-box" {
                     log("error box showing: \(state.errorAlert != nil), as a sheet: \(state.errorAlert?.window.sheetParent != nil), no fading toast: \(m.toast == nil), in log: \(m.log.last?.kind == .error)")
                 }
                 if steps[i].0 == "message-log" {
                     log("box closed: \(state.errorAlert == nil && m.pendingError == nil), message log open: \(m.conflictsOpen && m.issuesTab == .messages), entries \(m.log.count), errors \(m.errorCount)")
                 }
-                if steps[i].0 == "restore-width" { ToolbarRows.note("-- before snapshot") }
                 let path = dir + "/\(String(format: "%02d", i + 1))-\(steps[i].0).png"
                 let ok = snapshot(path)
                 log("snapshot \(steps[i].0): \(ok) \(ok ? analyse(path, state) : "")")

@@ -204,8 +204,6 @@ struct TabsView: View {
 }
 
 struct StatusBar: View {
-    /// The width the status bar was last given (for the smoke test).
-    nonisolated(unsafe) static var lastWidth = 0
     @Environment(AppState.self) private var state
     var body: some View {
         let m = state.model
@@ -225,7 +223,6 @@ struct StatusBar: View {
         }
         .font(.system(size: 11.5 * state.uiScale))
         .padding(.horizontal, 12).frame(minHeight: 24)
-        .background(GeometryReader { g in Color.clear.onChange(of: g.size.width, initial: true) { _, w in StatusBar.lastWidth = Int(w) } })
         .background(Color(nsColor: t.panel.ns))
         .overlay(alignment: .top) { Divider() }
     }

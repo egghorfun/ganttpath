@@ -131,14 +131,8 @@ extension View {
 
 /// Places the toolbar's groups in rows as arrangeToolbar decides, items centred in their row.
 struct ToolbarRows: Layout {
-    /// One per place the layout is used, so the smoke test can tell layout passes apart.
-    final class Tag { let id: Int; init() { Self.next += 1; id = Self.next }; nonisolated(unsafe) static var next = 0 }
-    func makeCache(subviews: Subviews) -> Tag { Tag() }
-    /// The rows last placed (item indexes), for the smoke test.
-    nonisolated(unsafe) static var lastRows: [[Int]] = []
-    nonisolated(unsafe) static var lastInfo = ""
-    nonisolated(unsafe) static var lastProposed = 0
-    /// Where the right-hand group is shown, in window coordinates (from SwiftUI's final geometry; for the smoke test).
+    /// Where the first and the right-hand groups are shown, in window coordinates (SwiftUI's final geometry; for the smoke test).
+    nonisolated(unsafe) static var leadingFrame = CGRect.zero
     nonisolated(unsafe) static var trailingFrame = CGRect.zero
     var hSpacing: CGFloat = 4
     var vSpacing: CGFloat = 2
@@ -150,32 +144,15 @@ struct ToolbarRows: Layout {
         return (r, sizes)
     }
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Tag) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 10_000
-        Self.note("#\(cache.id) size \(proposal.width.map { String(Int($0)) } ?? "nil")")
-        if let w = proposal.width, w.isFinite { Self.lastProposed = Int(w) }
         let (rs, sizes) = rows(width, subviews)
         let h = rs.reduce(CGFloat(0)) { $0 + ($1.map { sizes[$0.index].height }.max() ?? 0) } + vSpacing * CGFloat(max(0, rs.count - 1))
         return CGSize(width: proposal.width ?? rs.map { r in r.map { CGFloat($0.x) + sizes[$0.index].width }.max() ?? 0 }.max() ?? 0, height: h)
     }
 
-    /// What SwiftUI asked of the layout, latest last (for the smoke test).
-    nonisolated(unsafe) static var history: [String] = []
-    static func note(_ s: String) {
-        // with the window's and the hosting view's width at that moment, and the time, to tell passes apart
-        let info = MainActor.assumeIsolated { () -> String in
-            let ws = NSApp.windows.filter { $0.isVisible }.map { w in "\(Int(w.frame.width))/\(Int(w.contentView?.frame.width ?? -1))" }
-            return ws.joined(separator: ",")
-        }
-        history.append("\(s) win \(info) t\(String(format: "%.2f", ProcessInfo.processInfo.systemUptime.truncatingRemainder(dividingBy: 1000)))")
-        if history.count > 40 { history.removeFirst(history.count - 40) }
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Tag) {
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let (rs, sizes) = rows(bounds.width, subviews)
-        Self.lastRows = rs.map { $0.map { $0.index } }
-        Self.lastInfo = "placed in width \(Int(bounds.width)), item widths \(sizes.map { Int($0.width) })"
-        Self.note("#\(cache.id) place \(Int(bounds.width))")
         var y = bounds.minY
         for row in rs {
             let rowH = row.map { sizes[$0.index].height }.max() ?? 0
@@ -222,6 +199,7 @@ struct ToolbarView: View {
                 TB(icon: "save", label: "Save", help: "Save a new dated version (⌘S)") { state.saveCommand() }
                 TBMenu(icon: "export", label: "Export", help: "Export to MS Project XML, Excel, CSV or PDF") { exportMenu }
             }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { ToolbarRows.leadingFrame = $0 }
             TBGroup {
                 TB(icon: "undo", help: m.canUndo ? "Undo \(m.undoLabel ?? "") (⌘Z)" : "Nothing to undo") { m.undo() }.disabled(!m.canUndo)
                 TB(icon: "redo", help: m.canRedo ? "Redo \(m.redoLabel ?? "") (⇧⌘Z)" : "Nothing to redo") { m.redo() }.disabled(!m.canRedo)
