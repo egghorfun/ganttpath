@@ -132,7 +132,7 @@ extension View {
 /// Places the toolbar's groups in rows as arrangeToolbar decides, items centred in their row.
 struct ToolbarRows: Layout {
     /// The rows last placed (item indexes), for the smoke test.
-    @MainActor static var lastRows: [[Int]] = []
+    nonisolated(unsafe) static var lastRows: [[Int]] = []
     var hSpacing: CGFloat = 4
     var vSpacing: CGFloat = 2
 
