@@ -133,6 +133,7 @@ extension View {
 struct ToolbarRows: Layout {
     /// The rows last placed (item indexes), for the smoke test.
     nonisolated(unsafe) static var lastRows: [[Int]] = []
+    nonisolated(unsafe) static var lastInfo = ""
     var hSpacing: CGFloat = 4
     var vSpacing: CGFloat = 2
 
@@ -153,6 +154,7 @@ struct ToolbarRows: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let (rs, sizes) = rows(bounds.width, subviews)
         Self.lastRows = rs.map { $0.map { $0.index } }
+        Self.lastInfo = "placed in width \(Int(bounds.width)), item widths \(sizes.map { Int($0.width) })"
         var y = bounds.minY
         for row in rs {
             let rowH = row.map { sizes[$0.index].height }.max() ?? 0
