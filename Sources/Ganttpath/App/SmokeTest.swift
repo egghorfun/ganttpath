@@ -65,7 +65,9 @@ enum SmokeTest {
                 }
             }),
             ("restore-width", {
+                ToolbarRows.note("-- widening now")
                 if let f = savedFrame, let w = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }) { w.setFrame(f, display: true) }
+                ToolbarRows.note("-- widened")
             }),
             ("network", { m.conflictsOpen = false; m.tab = .network }),
             ("timeline", { m.tab = .timeline }),
@@ -139,10 +141,11 @@ enum SmokeTest {
                     log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
                 }
                 if steps[i].0 == "restore-width" {
-                    log("toolbar layout calls around the resize: \(ToolbarRows.history.suffix(16))")
+                    log("toolbar layout calls around the resize: \(ToolbarRows.history.suffix(14).joined(separator: " | "))")
                     log("after widening again: toolbar last width offered \(ToolbarRows.lastProposed), rows \(ToolbarRows.lastRows), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), status bar width \(StatusBar.lastWidth); toolbar follows the window (offered width = status bar width - 20 px padding): \(ToolbarRows.lastProposed == StatusBar.lastWidth - 20)")
                 }
                 if steps[i].0 == "network" {
+                    log("toolbar layout calls since: \(ToolbarRows.history.suffix(8).joined(separator: " | "))")
                     let w = NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }
                     w?.contentView?.layoutSubtreeIfNeeded()
                     w?.displayIfNeeded()
@@ -157,6 +160,7 @@ enum SmokeTest {
                 if steps[i].0 == "message-log" {
                     log("box closed: \(state.errorAlert == nil && m.pendingError == nil), message log open: \(m.conflictsOpen && m.issuesTab == .messages), entries \(m.log.count), errors \(m.errorCount)")
                 }
+                if steps[i].0 == "restore-width" { ToolbarRows.note("-- before snapshot") }
                 let path = dir + "/\(String(format: "%02d", i + 1))-\(steps[i].0).png"
                 let ok = snapshot(path)
                 log("snapshot \(steps[i].0): \(ok) \(ok ? analyse(path, state) : "")")

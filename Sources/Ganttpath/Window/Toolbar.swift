@@ -156,7 +156,15 @@ struct ToolbarRows: Layout {
 
     /// What SwiftUI asked of the layout, latest last (for the smoke test).
     nonisolated(unsafe) static var history: [String] = []
-    static func note(_ s: String) { history.append(s); if history.count > 40 { history.removeFirst(history.count - 40) } }
+    static func note(_ s: String) {
+        // with the window's and the hosting view's width at that moment, and the time, to tell passes apart
+        let info = MainActor.assumeIsolated { () -> String in
+            let ws = NSApp.windows.filter { $0.isVisible }.map { w in "\(Int(w.frame.width))/\(Int(w.contentView?.frame.width ?? -1))" }
+            return ws.joined(separator: ",")
+        }
+        history.append("\(s) win \(info) t\(String(format: "%.2f", ProcessInfo.processInfo.systemUptime.truncatingRemainder(dividingBy: 1000)))")
+        if history.count > 40 { history.removeFirst(history.count - 40) }
+    }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let (rs, sizes) = rows(bounds.width, subviews)
