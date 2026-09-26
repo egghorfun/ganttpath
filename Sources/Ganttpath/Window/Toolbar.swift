@@ -146,21 +146,23 @@ struct ToolbarRows: Layout {
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
-        // with no width (or an unlimited one) offered, the natural size is everything on one row: rows 1 and 2 side by side
-        let oneRow = sizes.reduce(CGFloat(0)) { $0 + $1.width } + hSpacing * CGFloat(max(0, sizes.count - 1))
-        let width: CGFloat
-        if let w = proposal.width, w.isFinite { width = w } else { width = oneRow }
+        let width = proposal.width ?? 10_000
+        Self.note("size \(proposal.width.map { String(Int($0)) } ?? "nil")")
         if let w = proposal.width, w.isFinite { Self.lastProposed = Int(w) }
-        let (rs, _) = rows(width, subviews)
+        let (rs, sizes) = rows(width, subviews)
         let h = rs.reduce(CGFloat(0)) { $0 + ($1.map { sizes[$0.index].height }.max() ?? 0) } + vSpacing * CGFloat(max(0, rs.count - 1))
-        return CGSize(width: width, height: h)
+        return CGSize(width: proposal.width ?? rs.map { r in r.map { CGFloat($0.x) + sizes[$0.index].width }.max() ?? 0 }.max() ?? 0, height: h)
     }
+
+    /// What SwiftUI asked of the layout, latest last (for the smoke test).
+    nonisolated(unsafe) static var history: [String] = []
+    static func note(_ s: String) { history.append(s); if history.count > 40 { history.removeFirst(history.count - 40) } }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let (rs, sizes) = rows(bounds.width, subviews)
         Self.lastRows = rs.map { $0.map { $0.index } }
         Self.lastInfo = "placed in width \(Int(bounds.width)), item widths \(sizes.map { Int($0.width) })"
+        Self.note("place \(Int(bounds.width))")
         var y = bounds.minY
         for row in rs {
             let rowH = row.map { sizes[$0.index].height }.max() ?? 0

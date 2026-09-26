@@ -17,7 +17,12 @@ enum SmokeTest {
         var report: [String] = []
         func log(_ s: String) { report.append(s); print("SMOKE: \(s)") }
         func finish() {
+            log("quitting")
             try? report.joined(separator: "\n").write(toFile: dir + "/report.txt", atomically: true, encoding: .utf8)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                print("SMOKE: the app did not quit within 10 s of being asked; exiting")
+                exit(3)
+            }
             NSApp.terminate(nil)
         }
         state.sheet = nil
@@ -134,6 +139,7 @@ enum SmokeTest {
                     log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
                 }
                 if steps[i].0 == "restore-width" {
+                    log("toolbar layout calls around the resize: \(ToolbarRows.history.suffix(16))")
                     log("after widening again: toolbar last width offered \(ToolbarRows.lastProposed), rows \(ToolbarRows.lastRows), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), status bar width \(StatusBar.lastWidth); toolbar follows the window (offered width = status bar width - 20 px padding): \(ToolbarRows.lastProposed == StatusBar.lastWidth - 20)")
                 }
                 if steps[i].0 == "network" {
