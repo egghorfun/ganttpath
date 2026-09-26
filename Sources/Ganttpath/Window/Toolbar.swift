@@ -131,6 +131,9 @@ extension View {
 
 /// Places the toolbar's groups in rows as arrangeToolbar decides, items centred in their row.
 struct ToolbarRows: Layout {
+    /// One per place the layout is used, so the smoke test can tell layout passes apart.
+    final class Tag { let id: Int; init() { Self.next += 1; id = Self.next }; nonisolated(unsafe) static var next = 0 }
+    func makeCache(subviews: Subviews) -> Tag { Tag() }
     /// The rows last placed (item indexes), for the smoke test.
     nonisolated(unsafe) static var lastRows: [[Int]] = []
     nonisolated(unsafe) static var lastInfo = ""
@@ -145,9 +148,9 @@ struct ToolbarRows: Layout {
         return (r, sizes)
     }
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Tag) -> CGSize {
         let width = proposal.width ?? 10_000
-        Self.note("size \(proposal.width.map { String(Int($0)) } ?? "nil")")
+        Self.note("#\(cache.id) size \(proposal.width.map { String(Int($0)) } ?? "nil")")
         if let w = proposal.width, w.isFinite { Self.lastProposed = Int(w) }
         let (rs, sizes) = rows(width, subviews)
         let h = rs.reduce(CGFloat(0)) { $0 + ($1.map { sizes[$0.index].height }.max() ?? 0) } + vSpacing * CGFloat(max(0, rs.count - 1))
@@ -166,11 +169,11 @@ struct ToolbarRows: Layout {
         if history.count > 40 { history.removeFirst(history.count - 40) }
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Tag) {
         let (rs, sizes) = rows(bounds.width, subviews)
         Self.lastRows = rs.map { $0.map { $0.index } }
         Self.lastInfo = "placed in width \(Int(bounds.width)), item widths \(sizes.map { Int($0.width) })"
-        Self.note("place \(Int(bounds.width))")
+        Self.note("#\(cache.id) place \(Int(bounds.width))")
         var y = bounds.minY
         for row in rs {
             let rowH = row.map { sizes[$0.index].height }.max() ?? 0
