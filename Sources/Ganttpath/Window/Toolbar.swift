@@ -146,11 +146,15 @@ struct ToolbarRows: Layout {
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? 10_000
-        Self.lastProposed = proposal.width.map { Int($0) } ?? -1
-        let (rs, sizes) = rows(width, subviews)
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        // with no width (or an unlimited one) offered, the natural size is everything on one row: rows 1 and 2 side by side
+        let oneRow = sizes.reduce(CGFloat(0)) { $0 + $1.width } + hSpacing * CGFloat(max(0, sizes.count - 1))
+        let width: CGFloat
+        if let w = proposal.width, w.isFinite { width = w } else { width = oneRow }
+        if let w = proposal.width, w.isFinite { Self.lastProposed = Int(w) }
+        let (rs, _) = rows(width, subviews)
         let h = rs.reduce(CGFloat(0)) { $0 + ($1.map { sizes[$0.index].height }.max() ?? 0) } + vSpacing * CGFloat(max(0, rs.count - 1))
-        return CGSize(width: proposal.width ?? rs.map { r in r.map { CGFloat($0.x) + sizes[$0.index].width }.max() ?? 0 }.max() ?? 0, height: h)
+        return CGSize(width: width, height: h)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {

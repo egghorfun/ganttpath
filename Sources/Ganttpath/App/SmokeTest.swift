@@ -134,7 +134,7 @@ enum SmokeTest {
                     log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
                 }
                 if steps[i].0 == "restore-width" {
-                    log("after widening again: toolbar last width offered \(ToolbarRows.lastProposed), rows \(ToolbarRows.lastRows), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), status bar etc. share the same SwiftUI layout pass")
+                    log("after widening again: toolbar last width offered \(ToolbarRows.lastProposed), rows \(ToolbarRows.lastRows), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), status bar width \(StatusBar.lastWidth); toolbar follows the window (offered width = status bar width - 20 px padding): \(ToolbarRows.lastProposed == StatusBar.lastWidth - 20)")
                 }
                 if steps[i].0 == "network" {
                     let w = NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }
