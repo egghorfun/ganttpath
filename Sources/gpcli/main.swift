@@ -51,6 +51,9 @@ case "schedule-dir":
         _ = FileManager.default.createFile(atPath: outDir + "/" + f, contents: out.data(using: .utf8))
     }
     print("\(files.count) file(s)")
+case "render":
+    guard args.count >= 3 else { fail("usage: gpcli render <project> <out-dir>") }
+    do { try renderAll(args[1], args[2]) } catch { fail("\(error)") }
 case "view-dir":
     guard args.count >= 3 else { fail("usage: gpcli view-dir <in> <out>") }
     viewDir(args[1], args[2])

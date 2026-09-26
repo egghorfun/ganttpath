@@ -321,11 +321,18 @@ public enum SVGWriter {
     }
 }
 
-/// Every text an item list draws (after cutting to its max width), with its left and right edge, for tests and for
-/// checking that nothing runs past the edge of a chart or page.
-public struct PlacedText: Equatable, Sendable { public var text: String; public var left: Double; public var right: Double; public var y: Double; public var style: TextStyle }
+/// Every text an item list draws (after cutting to its max width), with its left and right edge and the clip rectangle it is
+/// drawn inside (if any), for tests and for checking that nothing runs past the edge of a chart or page.
+public struct PlacedText: Equatable, Sendable {
+    public var text: String; public var left: Double; public var right: Double; public var y: Double; public var style: TextStyle
+    /// Visible area (x, y, w, h) the text is clipped to, in the same coordinates.
+    public var clip: [Double]? = nil
+    /// The visible part's left and right edge (the whole text when not clipped).
+    public var visibleLeft: Double { clip.map { max(left, $0[0]) } ?? left }
+    public var visibleRight: Double { clip.map { min(right, $0[0] + $0[2]) } ?? right }
+}
 
-public func placedTexts(_ items: [DrawItem], _ m: TextMeasurer, dx: Double = 0, dy: Double = 0, scale: Double = 1) -> [PlacedText] {
+public func placedTexts(_ items: [DrawItem], _ m: TextMeasurer, dx: Double = 0, dy: Double = 0, scale: Double = 1, clip: [Double]? = nil) -> [PlacedText] {
     var out: [PlacedText] = []
     for it in items {
         switch it {
@@ -334,9 +341,15 @@ public func placedTexts(_ items: [DrawItem], _ m: TextMeasurer, dx: Double = 0, 
             if t.isEmpty { continue }
             let w = m.width(t, st)
             let left = st.anchor == .start ? x : st.anchor == .middle ? x - w / 2 : x - w
-            out.append(PlacedText(text: t, left: dx + left * scale, right: dx + (left + w) * scale, y: dy + y * scale, style: st))
-        case .clip(_, _, _, _, let items): out += placedTexts(items, m, dx: dx, dy: dy, scale: scale)
-        case .group(let gx, let gy, let s, let items): out += placedTexts(items, m, dx: dx + gx * scale, dy: dy + gy * scale, scale: scale * s)
+            out.append(PlacedText(text: t, left: dx + left * scale, right: dx + (left + w) * scale, y: dy + y * scale, style: st, clip: clip))
+        case .clip(let x, let y, let w, let h, let items):
+            var c = [dx + x * scale, dy + y * scale, w * scale, h * scale]
+            if let o = clip { // intersection with the clip already in force
+                let x0 = max(c[0], o[0]), y0 = max(c[1], o[1]), x1 = min(c[0] + c[2], o[0] + o[2]), y1 = min(c[1] + c[3], o[1] + o[3])
+                c = [x0, y0, max(0, x1 - x0), max(0, y1 - y0)]
+            }
+            out += placedTexts(items, m, dx: dx, dy: dy, scale: scale, clip: c)
+        case .group(let gx, let gy, let s, let items): out += placedTexts(items, m, dx: dx + gx * scale, dy: dy + gy * scale, scale: scale * s, clip: clip)
         default: continue
         }
     }

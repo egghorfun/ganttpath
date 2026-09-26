@@ -225,3 +225,80 @@ private func bodyTexts(_ p: Project, _ s: ScheduleResult, px: Double, opts: Gant
         #expect(truncJS("abc", 1) == "a…")
     }
 }
+
+@Suite struct PrintTests {
+    func bigProject(_ n: Int) -> (Project, ScheduleResult) {
+        var list: [TL] = []
+        for i in 0..<n { list.append(TL(dur: Double(1 + i % 5), preds: i > 0 && i % 7 != 0 ? "\(i)" : "", level: i % 10 == 0 ? 1 : 2, name: "Task number \(i + 1) with a fairly long descriptive name")) }
+        var p = mk(list)
+        p.settings.statusDate = "2026-11-02"
+        let s = scheduleAndApply(&p)
+        return (p, s)
+    }
+    func texts(_ pg: PrintedPage) -> [PlacedText] { placedTexts(pg.drawing.items, HelveticaMeasurer()) }
+
+    @Test func everyPaperSizePaginatesAndKeepsTextOnThePage() throws {
+        let (p, s) = bigProject(120)
+        var ctx = PrintContext()
+        ctx.timeZone = TimeZone(identifier: "UTC")!
+        ctx.now = Date(timeIntervalSince1970: 1_790_000_000)
+        var counts: [Int] = []
+        for paper in PAPER_SIZES {
+            ctx.page = PageSettings(paper: paper)
+            let pages = ganttPrintPages(p, s, ctx)
+            counts.append(pages.count)
+            #expect(!pages.isEmpty)
+            for (k, pg) in pages.enumerated() {
+                #expect(pg.drawing.width == PAPER[paper]!.w && pg.drawing.height == PAPER[paper]!.h)
+                let t = texts(pg)
+                #expect(t.contains { $0.text == "Page \(k + 1) of \(pages.count)" }, "page number on \(paper) page \(k + 1)")
+                for x in t where x.visibleRight > x.visibleLeft {
+                    #expect(x.visibleLeft >= -0.5 && x.visibleRight <= pg.drawing.width + 0.5 && x.y <= pg.drawing.height, "\(paper): \(x.text) at \(x.visibleLeft)...\(x.visibleRight)")
+                }
+            }
+        }
+        // every size uses the same layout scaled up, so the number of pages stays about the same
+        #expect(counts.allSatisfy { $0 >= 3 && $0 <= 5 }, "\(counts)")
+    }
+
+    @Test func headerFooterFieldsAreFilledIn() throws {
+        var (p, s) = bigProject(3)
+        p.settings.documentNumber = "DOC-42"
+        p.settings.headerFooter.header.left.lines[0] = HFLine(field: "docnum")
+        p.settings.headerFooter.header.right.lines[0] = HFLine(field: "hoursday")
+        p.settings.headerFooter.footer.right.lines[1] = HFLine(field: "status")
+        s = schedule(p)
+        var ctx = PrintContext()
+        ctx.timeZone = TimeZone(identifier: "UTC")!
+        ctx.now = Date(timeIntervalSince1970: 1_790_000_000) // 21 Sep 2026 14:13 UTC
+        let pg = try #require(ganttPrintPages(p, s, ctx).first)
+        let all = texts(pg).map { $0.text }
+        #expect(all.contains("DOC-42"))
+        #expect(all.contains("8h/day"))
+        #expect(all.contains("Status date Mon 02-Nov-2026"))
+        #expect(all.contains("Printed Mon 21-Sep-2026 14:13"))
+    }
+
+    @Test func criticalPathReportsAndDiagramPages() throws {
+        let session = samplePumpStation()
+        let p = session.project, s = session.sched
+        let ctx = PrintContext()
+        let cpm = cpmPrintPages(p, s, CpmState(), ctx)
+        #expect(cpm.count == 1)
+        #expect(texts(cpm[0]).contains { $0.text.hasPrefix("Critical tasks: ") })
+        let crit = reportPrintPages("critical", p, s, ctx)
+        #expect(texts(crit[0]).contains { $0.text == "Critical Tasks" })
+        #expect(reportPrintPages("nonsense", p, s, ctx).isEmpty)
+        let net = networkDrawing(p, s, layout: layoutNetwork(p, s), theme: .light)
+        let page = diagramPrintPage(p, s, net.drawing, ctx)
+        for t in texts(page) { #expect(t.right <= page.drawing.width + 0.5) }
+    }
+
+    @Test func imageHeadersAreRead() {
+        // 1x1 PNG
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        #expect(imagePixelSize(png)! == (1, 1))
+        #expect(dataFromDataURL("data:image/png;base64,iVBORw0KGgo=") != nil)
+        #expect(dataFromDataURL("not a url") == nil)
+    }
+}
