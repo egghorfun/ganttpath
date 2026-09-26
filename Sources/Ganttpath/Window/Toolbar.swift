@@ -134,6 +134,7 @@ struct ToolbarRows: Layout {
     /// The rows last placed (item indexes), for the smoke test.
     nonisolated(unsafe) static var lastRows: [[Int]] = []
     nonisolated(unsafe) static var lastInfo = ""
+    nonisolated(unsafe) static var lastProposed = 0
     var hSpacing: CGFloat = 4
     var vSpacing: CGFloat = 2
 
@@ -146,6 +147,7 @@ struct ToolbarRows: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 10_000
+        Self.lastProposed = proposal.width.map { Int($0) } ?? -1
         let (rs, sizes) = rows(width, subviews)
         let h = rs.reduce(CGFloat(0)) { $0 + ($1.map { sizes[$0.index].height }.max() ?? 0) } + vSpacing * CGFloat(max(0, rs.count - 1))
         return CGSize(width: proposal.width ?? rs.map { r in r.map { CGFloat($0.x) + sizes[$0.index].width }.max() ?? 0 }.max() ?? 0, height: h)

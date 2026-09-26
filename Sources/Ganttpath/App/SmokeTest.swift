@@ -27,7 +27,7 @@ enum SmokeTest {
         }
         let m = state.model
         // toolbar items: 0-4 row-1 groups, 5 search/filter group, 6 right-hand group
-        log("toolbar rows (expected [[0, 1, 2, 3, 4, 6], [5]] when wide enough): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), window width \(Int(NSApp.windows.first { $0.isVisible }?.frame.width ?? 0))")
+        log("toolbar rows (expected [[0, 1, 2, 3, 4, 6], [5]] when wide enough): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible }?.frame.width ?? 0))")
         log("tasks \(m.project.tasks.count), conflicts \(m.sched.conflictCount), finish \(m.sched.projectFinish ?? "-")")
         var madeConflict = false
         var savedFrame: NSRect? = nil
@@ -131,7 +131,7 @@ enum SmokeTest {
                 }
                 if steps[i].0 == "narrow-toolbar" {
                     NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.contentView?.layoutSubtreeIfNeeded()
-                    log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
+                    log("toolbar rows in a narrow window (right-hand group 6 last, on the search row or its own): \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1)), window width \(Int(NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }?.frame.width ?? 0))")
                 }
                 if steps[i].0 == "network" {
                     let w = NSApp.windows.first { $0.isVisible && $0.sheetParent == nil }
@@ -140,7 +140,7 @@ enum SmokeTest {
                     log("toolbar rows after restoring the width: \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), window \(w.map { "\($0.frame)" } ?? "-"), content \(w?.contentView.map { "\($0.frame)" } ?? "-")")
                 }
                 if steps[i].0 == "timeline" {
-                    log("toolbar rows a step later: \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo)")
+                    log("toolbar rows a step later: \(ToolbarRows.lastRows), \(ToolbarRows.lastInfo), last width offered \(ToolbarRows.lastProposed), gantt pane width \(Int(state.gantt?.view?.frame.width ?? -1))")
                 }
                 if steps[i].0 == "error-box" {
                     log("error box showing: \(state.errorAlert != nil), as a sheet: \(state.errorAlert?.window.sheetParent != nil), no fading toast: \(m.toast == nil), in log: \(m.log.last?.kind == .error)")
