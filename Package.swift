@@ -26,12 +26,17 @@ var targets: [Target] = [
 
 #if os(macOS)
 products.append(.executable(name: "Ganttpath", targets: ["Ganttpath"]))
-targets.append(.executableTarget(name: "Ganttpath", dependencies: ["GanttpathCore", "GanttpathModel"], path: "Sources/Ganttpath"))
+targets.append(.executableTarget(name: "Ganttpath", dependencies: ["GanttpathCore", "GanttpathModel"], path: "Sources/Ganttpath",
+                                  swiftSettings: [.swiftLanguageMode(.v5)]))
 #endif
+
+// The app targets macOS 27. GP_MACOS_MIN lets a build machine without the macOS 27 SDK (for example a CI runner) compile
+// and test everything against an earlier macOS; the shipped app is built with the default.
+let macMin = Context.environment["GP_MACOS_MIN"] ?? "27.0"
 
 let package = Package(
     name: "Ganttpath",
-    platforms: [.macOS("27.0")],
+    platforms: [.macOS(macMin)],
     products: products,
     targets: targets
 )

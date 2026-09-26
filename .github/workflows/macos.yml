@@ -1,0 +1,38 @@
+# Builds the Mac app and runs every test on macOS (the Linux container used for development cannot build SwiftUI).
+name: macOS build and tests
+on:
+  push:
+    branches: [claude/epic-gauss-iu5eve, main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode on the runner
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          X=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$X"
+          sw_vers
+          xcodebuild -version
+          swift --version
+          xcrun --show-sdk-version
+      - name: Choose the minimum macOS the SDK supports
+        run: |
+          SDK=$(xcrun --show-sdk-version | cut -d. -f1)
+          if [ "$SDK" -ge 27 ]; then echo "GP_MACOS_MIN=27.0" >> "$GITHUB_ENV"; else echo "GP_MACOS_MIN=$SDK.0" >> "$GITHUB_ENV"; fi
+      - name: Build everything (library, command-line tool and the Mac app)
+        run: swift build 2>&1 | tee build.log
+      - name: Run the tests
+        run: swift test 2>&1 | tail -60
+      - name: Build the app bundle
+        run: Packaging/build-app.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ganttpath-mac
+          path: |
+            dist/*.zip
+            build.log
