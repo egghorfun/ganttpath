@@ -1,10 +1,14 @@
 #!/bin/bash
 # Builds dist/Ganttpath.app on a Mac (Xcode 27 / Swift 6.4 or later, macOS 27).
 #
-#   Packaging/build-app.sh [--mpxj /path/to/mpxj-convert]
+#   Packaging/build-app.sh [--mpxj /path/to/package/bin/mpxj-convert]
 #
-# --mpxj  bundles the MPXJ .mpp reader (the GraalVM binary of the JavaScript app's vendor/mppjs-darwin-arm64/bin) so .mpp files
-#         open directly. Without it, MS Project files are opened after saving them as XML in MS Project.
+# --mpxj  bundles the MPXJ .mpp reader (npm @byteink/mppjs-darwin-arm64, fetched by Packaging/fetch-mpxj.sh; the JavaScript app's
+#         vendor/mppjs-darwin-arm64) with its LICENSE and NOTICE, so .mpp files open directly. Without it, MS Project files are
+#         opened after saving them as XML in MS Project.
+#
+# The version is APP_VERSION in Sources/GanttpathCore/Files.swift; the build number is GP_BUILD_NUMBER (the CI run number) or,
+# when that is not set, the UTC date and time, so every build has its own number.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 MPXJ=""
@@ -18,6 +22,8 @@ done
 swift build -c release --product Ganttpath
 BIN="$(swift build -c release --show-bin-path)/Ganttpath"
 VERSION=$(grep -o 'APP_VERSION = "[^"]*"' Sources/GanttpathCore/Files.swift | cut -d'"' -f2)
+BUILD="${GP_BUILD_NUMBER:-$(date -u +%Y%m%d%H%M)}"
+MACOS_MIN="${GP_MACOS_MIN:-27.0}"
 
 APP=dist/Ganttpath.app
 rm -rf dist
@@ -28,6 +34,8 @@ if [ -n "$MPXJ" ]; then
   mkdir -p "$APP/Contents/Resources/bin"
   cp "$MPXJ" "$APP/Contents/Resources/bin/mpxj-convert"
   chmod 755 "$APP/Contents/Resources/bin/mpxj-convert"
+  PKG="$(dirname "$MPXJ")/.."
+  for f in LICENSE NOTICE; do [ -f "$PKG/$f" ] && cp "$PKG/$f" "$APP/Contents/Resources/bin/mpxj-$f.txt"; done
 fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -42,8 +50,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleIconFile</key><string>Ganttpath.icns</string>
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-  <key>CFBundleVersion</key><string>${VERSION}</string>
-  <key>LSMinimumSystemVersion</key><string>27.0</string>
+  <key>CFBundleVersion</key><string>${BUILD}</string>
+  <key>LSMinimumSystemVersion</key><string>${MACOS_MIN}</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSHumanReadableCopyright</key><string>Ganttpath - for personal use.</string>
@@ -76,8 +84,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# ad-hoc signature (the bundled mpxj-convert keeps its own signature)
+# ad-hoc signatures: the .mpp reader too, so Apple silicon runs it whatever signature it came with
+if [ -f "$APP/Contents/Resources/bin/mpxj-convert" ]; then codesign --force --sign - "$APP/Contents/Resources/bin/mpxj-convert"; fi
 codesign --force --sign - "$APP/Contents/MacOS/Ganttpath"
 codesign --force --sign - "$APP"
-(cd dist && ditto -c -k --keepParent Ganttpath.app "Ganttpath-${VERSION}-mac.zip")
-echo "Built $APP (version $VERSION)"
+(cd dist && ditto -c -k --keepParent Ganttpath.app "Ganttpath-${VERSION}-build${BUILD}-mac.zip")
+echo "Built $APP (version $VERSION, build $BUILD, macOS $MACOS_MIN or later, .mpp reader: $([ -n "$MPXJ" ] && echo yes || echo no))"

@@ -1,6 +1,6 @@
 # Ganttpath (Swift)
 
-Ganttpath 1.3.6, rebuilt in Swift as a native macOS app (SwiftUI and AppKit, macOS 27). It is single-user project
+Ganttpath, rebuilt in Swift as a native macOS app (SwiftUI and AppKit, macOS 27), starting from the JavaScript app 1.3.6. It is single-user project
 scheduling for engineering projects, using MS Project style logic. The JavaScript/Electron version is the reference: its source is in
 `Ganttpath-1.3.6-source.zip` and is not part of this repository.
 
@@ -20,10 +20,28 @@ scheduling for engineering projects, using MS Project style logic. The JavaScrip
 ```
 swift build                      # everything
 swift test                       # all tests
-Packaging/build-app.sh           # dist/Ganttpath.app  (add --mpxj <path to mpxj-convert> to read .mpp files directly)
+Packaging/fetch-mpxj.sh mpxj     # the .mpp reader (checked against its checksum)
+Packaging/build-app.sh --mpxj mpxj/package/bin/mpxj-convert   # dist/Ganttpath.app and dist/Ganttpath-<version>-build<n>-mac.zip
 ```
 
-Without the MPXJ reader, open MS Project files after saving them as XML in MS Project (File > Save As > XML).
+## Versions
+
+The version is `APP_VERSION` in `Sources/GanttpathCore/Files.swift`. It goes up with every change handed over: 1.4.0 is the first
+Swift version with direct `.mpp` opening. Every build also gets its own build number (the CI run number, or the date and time for a
+local build). The number is shown in Ganttpath > About Ganttpath and is part of the zip name.
+
+## MS Project files
+
+- `.mpp` files are read by MPXJ (LGPL-2.1-or-later), the same reader the JavaScript app used: the native build in npm
+  `@byteink/mppjs-darwin-arm64` 0.1.8, for Apple-silicon Macs. It is bundled inside the app as `Contents/Resources/bin/mpxj-convert`,
+  with its licence and notices (`mpxj-LICENSE.txt`, `mpxj-NOTICE.txt`). It converts the file to MS Project XML, which Ganttpath imports.
+- What comes in: tasks and outline, durations, dates, links and lags, constraints, deadlines, % complete and actual dates, manual and
+  automatic scheduling, milestones, notes, calendars with their holidays (recurring ones too, as one exception per day), baselines,
+  status date, and custom fields (Text, Number, Flag, Date, Cost, Duration, Start, Finish, Outline Code) as custom columns. Resources,
+  assignments and costs are left out; the import report says what was left out.
+- Known limit of that reader build: it cannot convert files that use custom-field lookup tables, value lists or graphical
+  indicators (MPXJ's own test files: 105 of 116 convert). Ganttpath then says so; save such a file as XML in MS Project and open the XML.
+- Without the reader (a build without `--mpxj`), open MS Project files after saving them as XML in MS Project (File > Save As > XML).
 Holiday downloads use date.nager.at, as the JavaScript app does. The built-in holiday data is used when the Mac is offline.
 
 ## Tests

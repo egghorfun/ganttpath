@@ -549,7 +549,7 @@ struct AboutDialog: View {
     @Environment(AppState.self) private var state
     var body: some View {
         DialogFrame(title: "About Ganttpath", width: 480) {
-            Text("Ganttpath \(APP_VERSION)").bold()
+            Text("Ganttpath \(APP_VERSION)\((Bundle.main.infoDictionary?["CFBundleVersion"] as? String).map { " (build \($0))" } ?? "")").bold()
             Text("A simple, fast scheduling tool for engineering projects, following MS Project scheduling rules.")
             Text("Native macOS app (Swift and SwiftUI). \(AppState.mppBinary() != nil ? "Includes MPXJ (LGPL) as the .mpp reader." : "The .mpp reader is not included in this build: open MS Project files saved as XML.")")
                 .foregroundStyle(.secondary)

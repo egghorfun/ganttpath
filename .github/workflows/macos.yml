@@ -8,6 +8,8 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 60
+    env:
+      GP_BUILD_NUMBER: ${{ github.run_number }}   # every build gets its own number (shown in About and in the zip name)
     steps:
       - uses: actions/checkout@v4
       - name: Use the newest Xcode on the runner
@@ -37,14 +39,27 @@ jobs:
           for f in build.log test.log; do
             [ -f "$f" ] && grep -E -A4 "(error|warning: .*will be an error)" "$f" | sed 's|/Users/runner/work/ganttpath/ganttpath/||' | awk '!seen[$0]++' | head -600
           done
+      - name: Fetch the .mpp reader (MPXJ) and MPXJ's own test .mpp files, checking their checksums
+        run: Packaging/fetch-mpxj.sh "$PWD/mpxj" --samples
+      - name: Convert the test .mpp files with the reader and check the import (custom fields, recurring exceptions)
+        run: |
+          codesign --force --sign - mpxj/package/bin/mpxj-convert
+          mkdir -p mpxj/xml
+          for f in mpxj/samples/*.mpp; do
+            b=$(basename "$f" .mpp)
+            if mpxj/package/bin/mpxj-convert "$f" "mpxj/xml/$b.xml" > "mpxj/xml/$b.log" 2>&1; then echo "converted $b"; else echo "could not convert $b (exit $?)"; fi
+          done
+          set -o pipefail
+          GP_MPXJ_XML="$PWD/mpxj/xml" swift test --filter "CustomFieldTests|RecurrenceTests|MppReaderMessageTests" 2>&1 | tail -15
       - name: Build the app bundle
-        run: Packaging/build-app.sh
+        run: Packaging/build-app.sh --mpxj mpxj/package/bin/mpxj-convert
       - name: Run the app (smoke test) and show what it drew
         run: |
           mkdir -p smoke
-          GP_SMOKE_DIR="$PWD/smoke" GP_SMOKE_FILE="$PWD/Tests/GanttpathCoreTests/Fixtures/Ganttpath_Sample_Pump_Station.gpath" \
+          GP_SMOKE_DIR="$PWD/smoke" GP_SMOKE_FILE="$PWD/Tests/GanttpathCoreTests/Fixtures/Ganttpath_Sample_Pump_Station.gpath" GP_SMOKE_MPP_DIR="$PWD/mpxj/samples" \
             perl -e 'alarm 180; exec @ARGV' dist/Ganttpath.app/Contents/MacOS/Ganttpath || echo "app exit code $?"
           echo "=== report"; cat smoke/report.txt || true
+          echo "=== bundle"; ls -la dist/Ganttpath.app/Contents/Resources/bin || true; plutil -p dist/Ganttpath.app/Contents/Info.plist | grep -E "Version|Minimum" || true
           ls -la smoke
           ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i ganttpath && head -80 ~/Library/Logs/DiagnosticReports/*anttpath* || echo "no crash report"
       - uses: actions/upload-artifact@v4

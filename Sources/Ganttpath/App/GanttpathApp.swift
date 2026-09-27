@@ -147,10 +147,7 @@ final class AppState {
             while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
             if p.isRunning { p.terminate(); throw FileError("Reading the .mpp file took too long and was stopped.") }
             let msg = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            if p.terminationStatus != 0 {
-                let last = msg.split(separator: "\n").last.map(String.init) ?? ""
-                throw FileError("The .mpp file could not be read\(last.isEmpty ? "" : ": \(last)"). In MS Project use File > Save As > \"XML Format (*.xml)\" and open that XML file instead.")
-            }
+            if p.terminationStatus != 0 { throw FileError(mppReaderFailureMessage(msg)) }
             guard let d = FileManager.default.contents(atPath: out) else { throw FileError("The .mpp reader wrote no file.") }
             return String(decoding: d, as: UTF8.self)
         }

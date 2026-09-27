@@ -368,3 +368,34 @@ private func sheetRows(_ rows: [[Cell]]) -> [[SheetValue?]] {
         #expect(r.projectFinish == "2032-03-24")
     }
 }
+
+@Suite struct MppReaderTests {
+    /// The .mpp route end to end: the MPXJ reader named by MPPJS_BINARY turns the user's real .mpp into MS Project XML, and
+    /// the import gives exactly the same project as importing the XML the JavaScript app's reader wrote from the same file.
+    @Test(.enabled(if: privateFixture("awwtp.mpp") != nil && ProcessInfo.processInfo.environment["MPPJS_BINARY"] != nil,
+                   "needs GP_PRIVATE_FIXTURES and MPPJS_BINARY"))
+    func realMppFileImportsLikeItsXml() throws {
+        let bin = ProcessInfo.processInfo.environment["MPPJS_BINARY"]!
+        let conv: MppConverter = { path in
+            let out = NSTemporaryDirectory() + "gp-mpp-test-\(UUID().uuidString).xml"
+            defer { try? FileManager.default.removeItem(atPath: out) }
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: bin)
+            p.arguments = [path, out]
+            p.standardError = FileHandle.nullDevice
+            try p.run(); p.waitUntilExit()
+            guard p.terminationStatus == 0 else { throw FileError("reader exit \(p.terminationStatus)") }
+            return String(decoding: FileManager.default.contents(atPath: out)!, as: UTF8.self)
+        }
+        guard case .imported(let viaMpp, _, let kind) = try importFile(privateFixture("awwtp.mpp")!, mpp: conv) else { Issue.record("not imported"); return }
+        #expect(kind == "MS Project .mpp")
+        let viaXml = try importMSPDI(String(contentsOfFile: privateFixture("awwtp_mppjs.xml")!, encoding: .utf8), fileName: "awwtp.mpp")
+        #expect(viaMpp.project.tasks == viaXml.project.tasks)
+        #expect(viaMpp.project.calendars == viaXml.project.calendars)
+        #expect(viaMpp.project.settings == viaXml.project.settings)
+        #expect(viaMpp.project.customColumns == viaXml.project.customColumns)
+        #expect(viaMpp.project.tasks.count == 195)
+        #expect(viaMpp.report.matched == viaMpp.report.compared)
+        #expect(schedule(viaMpp.project).projectFinish == "2032-03-24")
+    }
+}

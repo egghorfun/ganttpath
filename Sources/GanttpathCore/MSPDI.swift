@@ -432,17 +432,19 @@ private struct CalInfo {
     var uid: Int, name: String, isBase: Bool, baseUid: Int
     var week: [Bool?], hours: [[Period]?]
     var exceptions: [(from: String, to: String, working: Bool, name: String, periods: [Period])]
-    var recurring: [String]
+    var recurring: [(name: String, dates: Int)]
+    var truncated: [String]
 }
 
 private func parseCalendars(_ root: XmlNode, _ taskCalUids: Set<Int>, _ notes: inout [ImportNote], _ skipped: inout Int) -> [(uid: Int, def: CalendarDef)] {
     var list: [CalInfo] = []
+    let weekStart = Int(xnum(root.kidText("WeekStartDay"), 0)!)
     for c in kids(kid(root, "Calendars"), "Calendar") {
         guard let uidD = xnum(c.kidText("UID")) else { continue }
         let uid = Int(uidD)
         var info = CalInfo(uid: uid, name: nonEmpty(c.kidText("Name")) ?? "Calendar \(uid)", isBase: xbool(c.kidText("IsBaseCalendar")),
                            baseUid: Int(xnum(c.kidText("BaseCalendarUID"), -1)!), week: Array(repeating: nil, count: 7),
-                           hours: Array(repeating: nil, count: 7), exceptions: [], recurring: [])
+                           hours: Array(repeating: nil, count: 7), exceptions: [], recurring: [], truncated: [])
         for wd in kids(c.kid("WeekDays"), "WeekDay") {
             let type = xnum(wd.kidText("DayType")).map { Int($0) }
             let working = wd.kidText("DayWorking")
@@ -469,8 +471,30 @@ private func parseCalendars(_ root: XmlNode, _ taskCalUids: Set<Int>, _ notes: i
                 if !periods.isEmpty && info.exceptions[k].periods.isEmpty { info.exceptions[k].periods = periods }
                 continue
             }
-            let occ = xnum(ex.kidText("Occurrences"), 1)!
-            if byOcc && occ > 1 { info.recurring.append(name.isEmpty ? f : name); continue }
+            let type = Int(xnum(ex.kidText("Type"), 1)!)
+            let occ = Int(xnum(ex.kidText("Occurrences"), 1)!)
+            if type >= 2 && type <= 7 && (occ > 1 || !byOcc), let fDn = parseISO(f), let tDn = parseISO(to ?? f) {
+                // a recurring exception: one day off (or one day with other working hours) for each date it falls on
+                let rule = RecurringException(type: type, fromDn: fDn, toDn: tDn, occurrences: byOcc ? occ : nil,
+                                              period: Int(xnum(ex.kidText("Period"), 1)!), daysOfWeek: Int(xnum(ex.kidText("DaysOfWeek"), 0)!),
+                                              monthItem: Int(xnum(ex.kidText("MonthItem"), 0)!), monthPosition: Int(xnum(ex.kidText("MonthPosition"), 0)!),
+                                              month: Int(xnum(ex.kidText("Month"), 0)!), monthDay: Int(xnum(ex.kidText("MonthDay"), 1)!))
+                let limit = 2000
+                let dates = expandRecurringException(rule, weekStart: weekStart, limit: limit)
+                for dn in dates {
+                    // MPXJ (and older MS Project XML) also lists each date as a dated exception: give that one the name, keep one per day
+                    let iso = toISO(dn)
+                    if let k = info.exceptions.firstIndex(where: { $0.from == iso && $0.to == iso }) {
+                        if info.exceptions[k].name.isEmpty { info.exceptions[k].name = name }
+                        if !periods.isEmpty && info.exceptions[k].periods.isEmpty { info.exceptions[k].periods = periods }
+                    } else {
+                        info.exceptions.append((iso, iso, working, name, periods))
+                    }
+                }
+                info.recurring.append((name.isEmpty ? f : name, dates.count))
+                if dates.count >= limit && (byOcc ? occ > limit : true) { info.truncated.append(name.isEmpty ? f : name) }
+                continue
+            }
             info.exceptions.append((f, to ?? f, working, name, periods))
         }
         list.append(info)
@@ -503,7 +527,12 @@ private func parseCalendars(_ root: XmlNode, _ taskCalUids: Set<Int>, _ notes: i
         var seen = Set<Int>()
         let r = resolve(c, &seen)
         if !c.recurring.isEmpty {
-            notes.append(ImportNote(level: "warn", text: "Calendar \"\(c.name)\": recurring exception(s) not imported (\(c.recurring.prefix(5).joined(separator: ", "))\(c.recurring.count > 5 ? ", ..." : "")). Add them in Project Settings > Calendar if you need them."))
+            let days = c.recurring.reduce(0) { $0 + $1.dates }
+            let names = c.recurring.prefix(5).map { $0.name }.joined(separator: ", ") + (c.recurring.count > 5 ? ", ..." : "")
+            notes.append(ImportNote(level: "info", text: "Calendar \"\(c.name)\": \(plural(c.recurring.count, "recurring exception")) (\(names)) imported as \(plural(days, "dated exception")), one for each day it falls on."))
+        }
+        if !c.truncated.isEmpty {
+            notes.append(ImportNote(level: "warn", text: "Calendar \"\(c.name)\": recurring exception(s) \(c.truncated.prefix(5).joined(separator: ", ")) repeat more than 2,000 times; only the first 2,000 dates were imported."))
         }
         // keep the working hours only when they differ from the standard 08:00-12:00 and 13:00-17:00
         let hours: [[Period]] = (0..<7).map { d in r.week[d] ? ((r.hours[d]?.isEmpty == false) ? r.hours[d]! : DEFAULT_PERIODS) : [] }
@@ -697,12 +726,18 @@ public func importMSPDI(_ xmlText: String, fileName: String = "Imported project"
     project.nextUid = max(1, (tasks.map { $0.uid + 1 }.max() ?? 1))
     normalizeProject(&project)
 
-    // ---- assignments / resources / extended attributes (not carried over)
+    // ---- custom fields (Text1-30, Number1-20, Flag1-20, Date, Cost, Duration, Start, Finish, Outline Code fields) as custom columns
+    let extAttr = kids(root.kid("ExtendedAttributes"), "ExtendedAttribute")
+    let custom = importCustomFields(extAttr, taskEls, keep: Set(project.tasks.map { $0.uid }), minPerDay: minPerDay, minPerWeek: minPerWeek)
+    project.customColumns += custom.columns
+    for k in project.tasks.indices {
+        for (colId, v) in custom.values[project.tasks[k].uid] ?? [:] { project.tasks[k].custom[colId] = v }
+    }
+
+    // ---- assignments / resources (not carried over)
     let assign = kids(root.kid("Assignments"), "Assignment").filter { Int(xnum($0.kidText("ResourceUID"), -65535)!) != -65535 }
     st["resourceAssignments"] = assign.count
     let realResources = kids(root.kid("Resources"), "Resource").filter { Int(xnum($0.kidText("UID"), 0)!) != 0 }
-    let extAttr = kids(root.kid("ExtendedAttributes"), "ExtendedAttribute")
-    let taskExt = taskEls.reduce(0) { $0 + $1.kids("ExtendedAttribute").count }
 
     // ---- schedule with Ganttpath's engine and compare with the dates stored in the file
     let s = schedule(project)
@@ -720,7 +755,12 @@ public func importMSPDI(_ xmlText: String, fileName: String = "Imported project"
 
     // ---- report
     if st["resourceAssignments"]! > 0 || !realResources.isEmpty { note("info", "Resources are not supported: \(realResources.count) resource(s) and \(st["resourceAssignments"]!) assignment(s) were left out. Task dates and durations are kept.") }
-    if !extAttr.isEmpty || taskExt > 0 { note("info", "Custom fields from the MS Project file are not imported (\(extAttr.count) field definition(s)).") }
+    if !custom.columns.isEmpty {
+        let names = custom.columns.prefix(8).map { $0.name }.joined(separator: ", ") + (custom.columns.count > 8 ? ", ..." : "")
+        note("info", "\(plural(custom.columns.count, "custom field")) imported as custom column\(custom.columns.count == 1 ? "" : "s") (\(names)). Show \(custom.columns.count == 1 ? "it" : "them") with Columns in the toolbar.")
+    }
+    if custom.datesWithTime > 0 { note("info", "Custom date fields keep the date only; the time of day was left out (\(custom.datesWithTime) value(s)).") }
+    if custom.unused > 0 { note("info", "\(plural(custom.unused, "custom field definition")) with no values on any task \(custom.unused == 1 ? "was" : "were") left out.") }
     if st["inactive"]! > 0 { note("info", "\(st["inactive"]!) inactive task(s) were imported as inactive: they keep their dates, take no part in the schedule and are shown struck through (e.g. \(exInactive.joined(separator: "; ")))." ) }
     if st["crossLinks"]! > 0 { note("warn", "\(st["crossLinks"]!) link(s) to other project files were skipped.") }
     if st["badLinks"]! > 0 { note("warn", "\(st["badLinks"]!) link(s) pointing at missing tasks were skipped.") }
@@ -736,4 +776,71 @@ public func importMSPDI(_ xmlText: String, fileName: String = "Imported project"
         stats: ["tasks": tasks.count, "links": st["links"]!, "calendars": project.calendars.count, "baselines": st["baselines"]!, "manualTasks": st["manual"]!, "blankRowsSkipped": st["blank"]!],
         compared: compared, matched: matched, differences: Array(differences.prefix(50)), differenceCount: differences.count, notes: notes, hasCompare: true)
     return ImportResult(project: project, report: report)
+}
+
+// MARK: - custom fields
+
+/// MS Project custom fields as Ganttpath custom columns: the column is named after the field's alias (or its name, e.g. "Text1"),
+/// and its type follows the field: Text and Outline Code as text, Number and Cost as numbers, Flag as a Yes flag, Date, Start and
+/// Finish as dates, Duration as text such as "2d". Fields that no task has a value for are left out.
+func importCustomFields(_ defs: [XmlNode], _ taskEls: [XmlNode], keep: Set<Int>, minPerDay: Double, minPerWeek: Double)
+    -> (columns: [CustomColumn], values: [Int: [String: JSON]], datesWithTime: Int, unused: Int) {
+    var order: [String] = []
+    var info: [String: (name: String, alias: String?)] = [:]
+    for d in defs {
+        guard let id = nonEmpty(d.kidText("FieldID")), info[id] == nil else { continue }
+        order.append(id)
+        info[id] = (nonEmpty(d.kidText("FieldName")) ?? "Field \(id)", nonEmpty(d.kidText("Alias")))
+    }
+    func kind(_ fieldName: String) -> String {
+        let base = fieldName.replacingOccurrences(of: "[0-9 ]", with: "", options: .regularExpression).lowercased()
+        switch base {
+        case "number", "cost": return "number"
+        case "flag": return "flag"
+        case "date", "start", "finish": return "date"
+        case "duration": return "duration"
+        default: return "text"
+        }
+    }
+    var values: [Int: [String: JSON]] = [:]
+    var used = Set<String>()
+    var datesWithTime = 0
+    for te in taskEls {
+        guard let uidD = xnum(te.kidText("UID")), keep.contains(Int(uidD)) else { continue }
+        let uid = Int(uidD)
+        for ea in te.kids("ExtendedAttribute") {
+            guard let id = nonEmpty(ea.kidText("FieldID")), let raw = nonEmpty(ea.kidText("Value")) else { continue }
+            if info[id] == nil { order.append(id); info[id] = ("Field \(id)", nil) }
+            let colId = "ms\(id)"
+            let v: JSON?
+            switch kind(info[id]!.name) {
+            case "number":
+                v = Double(raw).flatMap { $0.isFinite ? JSON.number($0) : nil }
+            case "flag":
+                v = (raw == "1" || raw.lowercased() == "true") ? .bool(true) : nil
+            case "date":
+                if let d = dateOnly(raw) {
+                    v = .string(d)
+                    let time = raw.count >= 16 ? String(raw.dropFirst(11).prefix(5)) : "00:00"
+                    if time != "00:00" { datesWithTime += 1 }
+                } else { v = nil }
+            case "duration":
+                let minutes = (hoursFromDuration(raw) ?? 0) * 60
+                let unit = UNIT_OF_FORMAT[Int(xnum(ea.kidText("DurationFormat"), 7)!)] ?? "d"
+                let per: Double = unit == "m" ? 1 : unit == "h" ? 60 : unit == "w" ? minPerWeek : unit == "mo" ? minPerDay * 20 : minPerDay
+                v = .string("\(jsNumberString(trimNum(minutes / per)))\(unit == "mo" ? "mo" : unit)")
+            default:
+                v = .string(raw)
+            }
+            guard let val = v else { continue }
+            values[uid, default: [:]][colId] = val
+            used.insert(id)
+        }
+    }
+    let columns: [CustomColumn] = order.filter { used.contains($0) }.map { id in
+        let f = info[id]!
+        let k = kind(f.name)
+        return CustomColumn(id: "ms\(id)", name: f.alias ?? f.name, type: k == "duration" ? "text" : k)
+    }
+    return (columns, values, datesWithTime, order.filter { !used.contains($0) }.count)
 }

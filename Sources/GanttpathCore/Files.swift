@@ -13,7 +13,7 @@ public let AUTOSAVE_DIR = "Autosaves"
 public let AUTOSAVE_KEEP = 20
 public let AUTOSAVE_INTERVAL: TimeInterval = 5 * 60
 public let FORMAT = "ganttpath"
-public let APP_VERSION = "1.3.6"
+public let APP_VERSION = "1.4.0"
 
 public struct FileError: Error, CustomStringConvertible, Equatable {
     public let description: String
@@ -175,6 +175,26 @@ public enum OpenedFile {
 
 /// Runs the MPXJ converter (mpxj-convert <in> <out.xml>) and returns the XML text. Supplied by the app (a Process on macOS).
 public typealias MppConverter = (String) throws -> String
+
+/// The message for a .mpp file the MPXJ reader could not convert, from what the reader wrote to its error output.
+public func mppReaderFailureMessage(_ stderr: String) -> String {
+    let saveAsXml = "In MS Project use File > Save As > \"XML Format (*.xml)\" and open that XML file instead."
+    // the reader's build lacks the parts that write GUIDs, used by custom-field lookup tables, value lists and graphical indicators
+    if stderr.range(of: "mspdi.schema.Adapter[0-9]+", options: .regularExpression) != nil {
+        return "This .mpp file uses a feature the built-in reader cannot convert (custom-field lookup tables, value lists or graphical indicators). \(saveAsXml)"
+    }
+    let lines = stderr.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty && !$0.hasPrefix("at ") && !$0.hasPrefix("...") && !$0.contains("Log4j") }
+    if lines.contains(where: { $0.localizedCaseInsensitiveContains("password") || $0.localizedCaseInsensitiveContains("encrypt") }) {
+        return "This .mpp file is protected with a password. Open it in MS Project, remove the password or save it as XML, and open that. \(saveAsXml)"
+    }
+    let reason = lines.first { $0.contains("Exception") }.map { line -> String in
+        // "Exception in thread "main" java.lang.Foo: the message" -> "the message" (or the exception name)
+        let tail = line.components(separatedBy: ": ").dropFirst().joined(separator: ": ")
+        return tail.isEmpty ? line : tail
+    } ?? lines.first
+    return "The .mpp file could not be read\(reason.map { ": \($0)" } ?? ""). \(saveAsXml)"
+}
 
 func baseName(_ file: String) -> String {
     let b = basename(file)

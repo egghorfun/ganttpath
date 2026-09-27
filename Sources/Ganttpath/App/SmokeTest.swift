@@ -108,6 +108,24 @@ enum SmokeTest {
                 log("add task: \(m.project.tasks.count == n + 1)")
                 m.undo()
                 log("undo: \(m.project.tasks.count == n)")
+                // real .mpp files (MPXJ's own test files) through the bundled reader
+                if let mdir = ProcessInfo.processInfo.environment["GP_SMOKE_MPP_DIR"] {
+                    log("mpp reader bundled: \(AppState.mppBinary().map { ($0 as NSString).lastPathComponent } ?? "no")")
+                    for name in ["calendar-recurring-exceptions-project2016-mpp14.mpp", "task-text-project2019-mpp14.mpp", "mpp14task.mpp"] {
+                        let before = m.log.count
+                        let ok = state.open(mdir + "/" + name)
+                        state.sheet = nil
+                        if ok {
+                            let dated = m.project.calendars.reduce(0) { $0 + $1.exceptions.count }
+                            let notes = m.importReport?.0.report.notes.map { $0.text } ?? []
+                            log("open \(name): tasks \(m.project.tasks.count), calendars \(m.project.calendars.count), dated exceptions \(dated), custom columns \(m.project.customColumns.count); notes: \(notes.joined(separator: " | "))")
+                        } else {
+                            let msgs = m.log.dropFirst(before).map { $0.message }
+                            log("open \(name) failed, message shown: \(msgs.last ?? "-")")
+                            m.pendingError = nil
+                        }
+                    }
+                }
                 finish()
                 return
             }

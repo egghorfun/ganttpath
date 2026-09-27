@@ -288,3 +288,19 @@ private func localDate(_ y: Int, _ mo: Int, _ d: Int, _ h: Int = 0, _ mi: Int = 
         #expect(BUILTIN_TEMPLATES.count >= 2)
     }
 }
+
+@Suite struct MppReaderMessageTests {
+    @Test func messagesForReaderFailures() throws {
+        // what the MPXJ reader (npm @byteink/mppjs 0.1.8) writes for MPXJ's test file mpp14task.mpp, which has lookup tables
+        let adapter = try String(contentsOfFile: fixture("mpxj-adapter-error.txt"), encoding: .utf8)
+        #expect(mppReaderFailureMessage(adapter).hasPrefix("This .mpp file uses a feature the built-in reader cannot convert"))
+        #expect(mppReaderFailureMessage(adapter).hasSuffix("open that XML file instead."))
+        // a file that is not a project
+        #expect(mppReaderFailureMessage("2026-09-27 main ERROR Log4j API could not find a logging provider.\nUnsupported or unreadable input format: /tmp/bad.mpp\n")
+                == "The .mpp file could not be read: Unsupported or unreadable input format: /tmp/bad.mpp. In MS Project use File > Save As > \"XML Format (*.xml)\" and open that XML file instead.")
+        // an exception: its message, not the stack
+        #expect(mppReaderFailureMessage("Exception in thread \"main\" java.io.IOException: Stream closed\n\tat a.b(C.java:1)\n\t... 3 more\n")
+                == "The .mpp file could not be read: Stream closed. In MS Project use File > Save As > \"XML Format (*.xml)\" and open that XML file instead.")
+        #expect(mppReaderFailureMessage("").hasPrefix("The .mpp file could not be read. In MS Project"))
+    }
+}
