@@ -11,8 +11,8 @@ let MIN_PER_DAY = 480
 let MIN_PER_WEEK = 2400
 
 // DurationFormat / LagFormat codes: 3 min, 5 hour, 7 day, 9 week, 11 month (elapsed: 4, 6, 8, 10, 12; "estimated" values add 32)
-let FORMAT_OF_UNIT = ["m": 3, "h": 5, "d": 7, "w": 9, "mo": 11]
-let UNIT_OF_FORMAT = [3: "m", 4: "m", 5: "h", 6: "h", 7: "d", 8: "d", 9: "w", 10: "w", 11: "mo", 12: "mo"]
+let FORMAT_OF_UNIT = ["m": 3, "h": 5, "d": 7, "w": 9, "mo": 11, "em": 4, "eh": 6, "ed": 8, "ew": 10, "emo": 12]
+let UNIT_OF_FORMAT = [3: "m", 4: "em", 5: "h", 6: "eh", 7: "d", 8: "ed", 9: "w", 10: "ew", 11: "mo", 12: "emo"]
 let CONSTRAINT_TO_CODE = ["ASAP": 0, "ALAP": 1, "MSO": 2, "MFO": 3, "SNET": 4, "SNLT": 5, "FNET": 6, "FNLT": 7]
 let CODE_TO_CONSTRAINT = [0: "ASAP", 1: "ALAP", 2: "MSO", 3: "MFO", 4: "SNET", 5: "SNLT", 6: "FNET", 7: "FNLT"]
 let LINK_TO_CODE = ["FF": 0, "FS": 1, "SF": 2, "SS": 3]
@@ -199,7 +199,17 @@ public func exportMSPDI(_ project: Project, _ sched: ScheduleResult, now: Date =
     put("ActualsInSync", 0)
     put("RemoveFileProperties", 0)
     put("AdminProject", 0)
-    header["ExtendedAttributes"] = .f { $0.empty("ExtendedAttributes") }
+    let fields = planCustomFields(project)
+    header["ExtendedAttributes"] = .f { o in
+        if fields.written.isEmpty { o.empty("ExtendedAttributes"); return }
+        o.open("ExtendedAttributes")
+        for f in fields.written {
+            o.open("ExtendedAttribute").el("FieldID", f.fieldId).el("FieldName", f.fieldName)
+            if f.col.name != f.fieldName { o.el("Alias", f.col.name) }
+            o.close("ExtendedAttribute")
+        }
+        o.close("ExtendedAttributes")
+    }
     header["Calendars"] = .f { o in
         o.open("Calendars")
         for (i, c) in project.calendars.enumerated() { writeCalendar(o, c, i + 1) }
@@ -228,7 +238,7 @@ public func exportMSPDI(_ project: Project, _ sched: ScheduleResult, now: Date =
             pv("IgnoreResourceCalendar", 0); pv("HideBar", 0); pv("Rollup", 0); pv("PhysicalPercentComplete", 0); pv("EarnedValueMethod", 0)
             emit(o, "Task", ORDER_TASK, v)
         }
-        for (i, t) in T.enumerated() { writeTask(o, project, t, rows[i], i, calUid, dayMin, weekMin, dayStartT, dayEndT) }
+        for (i, t) in T.enumerated() { writeTask(o, project, t, rows[i], i, calUid, dayMin, weekMin, dayStartT, dayEndT, fields.written) }
         o.close("Tasks")
     }
     emitBody(out, "Project", ORDER_PROJECT, header)
@@ -241,7 +251,9 @@ public func exportMSPDI(_ project: Project, _ sched: ScheduleResult, now: Date =
     let colours = project.tasks.filter { nonEmpty($0.color) != nil }.count
     let weights = project.tasks.filter { $0.weight != nil }.count
     if tagged > 0 { notes.append("Tags on \(tagged) task(s) are not written to the MS Project file.") }
-    if custom > 0 { notes.append("\(custom) custom column(s) are not written to the MS Project file.") }
+    if custom > 0 && !fields.skipped.isEmpty {
+        notes.append("\(plural(fields.skipped.count, "custom column")) could not be written, as MS Project has no free field of that kind left: \(fields.skipped.joined(separator: ", ")).")
+    }
     if colours > 0 { notes.append("Custom task colours (\(colours) task(s)) are not written to the MS Project file.") }
     if weights > 0 { notes.append("S-curve weights (\(weights) task(s)) are not written to the MS Project file.") }
     return ExportResult(xml: xml, notes: notes)
@@ -266,7 +278,7 @@ let TYPE_TO_CODE = ["fixedUnits": 0, "fixedDuration": 1, "fixedWork": 2]
 let CODE_TO_TYPE = ["fixedUnits", "fixedDuration", "fixedWork"]
 
 func writeTask(_ o: XmlOut, _ project: Project, _ t: Task, _ r: ScheduledTask, _ i: Int, _ calUid: [String: Int],
-               _ dayMin: Int, _ weekMin: Int, _ dayStartT: String, _ dayEndT: String) {
+               _ dayMin: Int, _ weekMin: Int, _ dayStartT: String, _ dayEndT: String, _ fields: [ExportField] = []) {
     let isSummary = r.isSummary
     let manual = r.isManual
     let milestone = r.isMilestone
@@ -325,6 +337,17 @@ func writeTask(_ o: XmlOut, _ project: Project, _ t: Task, _ r: ScheduledTask, _
                 let lag = lagToXml(p.lag, dayMin, weekMin)
                 out.open("PredecessorLink").el("PredecessorUID", p.uid).el("Type", LINK_TO_CODE[p.type] ?? 1).el("CrossProject", 0)
                     .el("LinkLag", lag.0).el("LagFormat", lag.1).close("PredecessorLink")
+            }
+        }
+    }
+    // custom columns, in the MS Project fields planCustomFields chose
+    let ext: [(ExportField, String)] = fields.compactMap { f in customFieldValue(f, t.custom[f.col.id], project.settings, dayStartT).map { (f, $0) } }
+    if !ext.isEmpty {
+        v["ExtendedAttribute"] = .f { out in
+            for (f, value) in ext {
+                out.open("ExtendedAttribute").el("FieldID", f.fieldId).el("Value", value)
+                if f.kind == "duration" { out.el("DurationFormat", 7) }
+                out.close("ExtendedAttribute")
             }
         }
     }
@@ -648,7 +671,7 @@ public func importMSPDI(_ xmlText: String, fileName: String = "Imported project"
         let hours = hoursFromDuration(rawDur) ?? 0
         let dur = jsRoundInt(hours * 60) // working minutes, exactly as MS Project stores them
         let unit = UNIT_OF_FORMAT[durFormat > 20 ? durFormat - 32 : durFormat] ?? "d"
-        if ELAPSED_FORMATS.contains(durFormat) && !isSummary && dur > 0 { st["elapsedDurations"]! += 1; if exElapsed.count < 5 { exElapsed.append(name) } }
+        if isElapsedUnit(unit) && !isSummary { st["elapsedDurations"]! += 1; if exElapsed.count < 5 { exElapsed.append(name) } }
         let milestoneFlag = xbool(te.kidText("Milestone"))
         let fileStart = dateOnly(te.kidText("Start"))
         let fileFinish = dateOnly(te.kidText("Finish"))
@@ -657,7 +680,7 @@ public func importMSPDI(_ xmlText: String, fileName: String = "Imported project"
         task.level = max(1, outlineLevel)
         task.mode = isManual && !isSummary ? "manual" : "auto"
         task.dur = isSummary ? 0 : dur
-        task.durUnit = unit
+        task.durUnit = isSummary && isElapsedUnit(unit) ? "d" : unit
         task.milestone = milestoneFlag && dur > 0
         if task.mode == "manual" {
             st["manual"]! += 1
@@ -764,7 +787,7 @@ public func importMSPDI(_ xmlText: String, fileName: String = "Imported project"
     if st["inactive"]! > 0 { note("info", "\(st["inactive"]!) inactive task(s) were imported as inactive: they keep their dates, take no part in the schedule and are shown struck through (e.g. \(exInactive.joined(separator: "; ")))." ) }
     if st["crossLinks"]! > 0 { note("warn", "\(st["crossLinks"]!) link(s) to other project files were skipped.") }
     if st["badLinks"]! > 0 { note("warn", "\(st["badLinks"]!) link(s) pointing at missing tasks were skipped.") }
-    if st["elapsedDurations"]! > 0 { note("warn", "\(st["elapsedDurations"]!) task(s) use elapsed durations in MS Project; they are treated as working days here (e.g. \(exElapsed.joined(separator: "; "))).") }
+    if st["elapsedDurations"]! > 0 { note("info", "\(st["elapsedDurations"]!) task(s) have elapsed durations: they run round the clock, weekends and holidays included, as in MS Project (e.g. \(exElapsed.joined(separator: "; "))).") }
     if st["baselinesSkipped"]! > 0 { note("info", "\(st["baselinesSkipped"]!) baseline(s) above Baseline 10 were skipped.") }
     if st["badConstraints"]! > 0 { note("warn", "\(st["badConstraints"]!) constraint(s) without a date were changed to As Soon As Possible.") }
     if st["summaryConstraints"]! > 0 { note("info", "\(st["summaryConstraints"]!) summary task(s) had their own constraint; summary tasks take their dates from their sub-tasks here, so it was ignored.") }
@@ -843,4 +866,68 @@ func importCustomFields(_ defs: [XmlNode], _ taskEls: [XmlNode], keep: Set<Int>,
         return CustomColumn(id: "ms\(id)", name: f.alias ?? f.name, type: k == "duration" ? "text" : k)
     }
     return (columns, values, datesWithTime, order.filter { !used.contains($0) }.count)
+}
+
+// MARK: - custom fields in MS Project XML
+
+/// MS Project's task custom fields: the FieldID of Text1 ... Text30 and so on, as MS Project writes them (read from MS Project
+/// files with MPXJ). They are not evenly spaced.
+public let MSP_TASK_FIELDS: [String: [Int]] = [
+    "Text": [188743731, 188743734, 188743737, 188743740, 188743743, 188743746, 188743747, 188743748, 188743749, 188743750,
+             188743997, 188743998, 188743999, 188744000, 188744001, 188744002, 188744003, 188744004, 188744005, 188744006,
+             188744007, 188744008, 188744009, 188744010, 188744011, 188744012, 188744013, 188744014, 188744015, 188744016],
+    "Number": [188743767, 188743768, 188743769, 188743770, 188743771, 188743982, 188743983, 188743984, 188743985, 188743986,
+               188743987, 188743988, 188743989, 188743990, 188743991, 188743992, 188743993, 188743994, 188743995, 188743996],
+    "Flag": [188743752, 188743753, 188743754, 188743755, 188743756, 188743757, 188743758, 188743759, 188743760, 188743761,
+             188743972, 188743973, 188743974, 188743975, 188743976, 188743977, 188743978, 188743979, 188743980, 188743981],
+    "Date": [188743945, 188743946, 188743947, 188743948, 188743949, 188743950, 188743951, 188743952, 188743953, 188743954],
+    "Cost": [188743786, 188743787, 188743788, 188743938, 188743939, 188743940, 188743941, 188743942, 188743943, 188743944],
+    "Duration": [188743783, 188743784, 188743785, 188743955, 188743956, 188743957, 188743958, 188743959, 188743960, 188743961],
+]
+
+/// A custom column and the MS Project field it is written to. `kind` is text, number, flag, date, cost or duration.
+struct ExportField { var col: CustomColumn; var fieldId: Int; var fieldName: String; var kind: String }
+
+/// Which MS Project field each custom column goes to. A column that came from an MS Project field (id "ms<FieldID>") goes back to
+/// the same field; the others take the next free field of their kind: text and list columns Text, number Number, flag Flag, date
+/// Date. Columns with no free field left are listed as skipped.
+func planCustomFields(_ p: Project) -> (written: [ExportField], skipped: [String]) {
+    var byId: [Int: (group: String, n: Int)] = [:]
+    for (g, ids) in MSP_TASK_FIELDS { for (k, id) in ids.enumerated() { byId[id] = (g, k + 1) } }
+    var used = Set<Int>()
+    var out: [ExportField] = [], skipped: [String] = []
+    var rest: [CustomColumn] = []
+    for c in p.customColumns {
+        if c.id.hasPrefix("ms"), let id = Int(c.id.dropFirst(2)), let f = byId[id], !used.contains(id) {
+            used.insert(id)
+            out.append(ExportField(col: c, fieldId: id, fieldName: "\(f.group)\(f.n)", kind: f.group.lowercased()))
+        } else { rest.append(c) }
+    }
+    for c in rest {
+        let group = c.type == "number" ? "Number" : c.type == "flag" ? "Flag" : c.type == "date" ? "Date" : "Text"
+        guard let k = MSP_TASK_FIELDS[group]!.firstIndex(where: { !used.contains($0) }) else { skipped.append(c.name); continue }
+        let id = MSP_TASK_FIELDS[group]![k]
+        used.insert(id)
+        out.append(ExportField(col: c, fieldId: id, fieldName: "\(group)\(k + 1)", kind: group.lowercased()))
+    }
+    return (out.sorted { $0.fieldId < $1.fieldId }, skipped)
+}
+
+/// A task's value of a custom column as MS Project XML text, or nil when it has none.
+func customFieldValue(_ f: ExportField, _ v: JSON?, _ s: Settings, _ dayStartT: String) -> String? {
+    guard let v = v, !v.isNull else { return nil }
+    switch f.kind {
+    case "number", "cost":
+        let n = v.jsNumber
+        return n.isFinite ? jsNumberString(n) : nil
+    case "flag":
+        return v.truthy ? "1" : nil
+    case "date":
+        return parseISO(v.jsString).map { "\(toISO($0))T\(dayStartT)" }
+    case "duration":
+        return parseDuration(v.jsString, s).map { minDur($0.min) }
+    default:
+        let text = v.jsString
+        return text.isEmpty ? nil : text
+    }
 }

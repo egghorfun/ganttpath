@@ -13,7 +13,18 @@ public let DEFAULT_HOURS_PER_WEEK: Double = 40
 public let DEFAULT_DAYS_PER_MONTH: Double = 20
 
 public let UNITS = ["m", "h", "d", "w", "mo"]
-public let UNIT_NAMES = ["m": "minutes", "h": "hours", "d": "days", "w": "weeks", "mo": "months"]
+/// Elapsed units (MS Project's emin, ehr, eday, ewk, emon): calendar time, round the clock, weekends and holidays included.
+/// An elapsed day is 24 hours, an elapsed week 7 days and an elapsed month 30 days, as in MS Project.
+public let ELAPSED_UNITS = ["em", "eh", "ed", "ew", "emo"]
+public let UNIT_NAMES = ["m": "minutes", "h": "hours", "d": "days", "w": "weeks", "mo": "months",
+                         "em": "elapsed minutes", "eh": "elapsed hours", "ed": "elapsed days", "ew": "elapsed weeks", "emo": "elapsed months"]
+public func isElapsedUnit(_ u: String) -> Bool { ELAPSED_UNITS.contains(u) }
+/// A task duration unit Ganttpath knows (working or elapsed).
+public func isDurationUnit(_ u: String) -> Bool { UNITS.contains(u) || ELAPSED_UNITS.contains(u) }
+
+/// The calendar an elapsed-duration task is scheduled on: every day, 00:00 to 24:00.
+public let ELAPSED_CALENDAR = CalendarDef(id: "__elapsed", name: "24 hours (elapsed)", workWeek: Array(repeating: true, count: 7),
+                                          hours: Array(repeating: [[0, 1440]], count: 7), exceptions: [])
 
 @inline(__always) func positiveOr(_ v: Double?, _ d: Double) -> Double {
     guard let v = v, v.isFinite, v > 0 else { return d }
@@ -33,6 +44,11 @@ public func unitMinutes(_ unit: String, _ s: Settings?) -> Double {
     case "h": return 60
     case "w": return Double(weekMinOf(s))
     case "mo": return monthDaysOf(s) * Double(dayMinOf(s))
+    case "em": return 1
+    case "eh": return 60
+    case "ed": return 1440
+    case "ew": return 7 * 1440
+    case "emo": return 30 * 1440
     default: return Double(dayMinOf(s))
     }
 }
@@ -41,6 +57,11 @@ public func unitMinutes(_ unit: String, _ s: Settings?) -> Double {
 public func taskMin(_ t: Task, _ s: Settings?) -> Int { max(0, t.dur) }
 
 private let UNIT_WORDS: [(String, Set<String>)] = [
+    ("emo", ["emo", "emos", "emon", "emons", "emonth", "emonths"]),
+    ("ew", ["ew", "ewk", "ewks", "eweek", "eweeks"]),
+    ("ed", ["ed", "edy", "edys", "eday", "edays"]),
+    ("eh", ["eh", "ehr", "ehrs", "ehour", "ehours"]),
+    ("em", ["em", "emin", "emins", "eminute", "eminutes"]),
     ("mo", ["mo", "mos", "mon", "mons", "month", "months"]),
     ("w", ["w", "wk", "wks", "week", "weeks"]),
     ("d", ["d", "dy", "dys", "day", "days"]),
@@ -85,12 +106,12 @@ func isNumberLiteral(_ s: String) -> Bool {
 }
 
 @inline(__always) public func round2(_ x: Double) -> Double { jsRound(x * 100) / 100 }
-private let SUFFIX = ["m": "m", "h": "h", "d": "d", "w": "w", "mo": "mo"]
+private let SUFFIX = ["m": "m", "h": "h", "d": "d", "w": "w", "mo": "mo", "em": "em", "eh": "eh", "ed": "ed", "ew": "ew", "emo": "emo"]
 
 /// 2400, 'd' -> "5d"; 360, 'h' -> "6h"; 360, 'd' -> "0.75d".
 public func formatDuration(_ min: Int?, _ unit: String?, _ s: Settings?) -> String {
     guard let min = min else { return "" }
-    let u = UNITS.contains(unit ?? "") ? unit! : "d"
+    let u = isDurationUnit(unit ?? "") ? unit! : "d"
     return "\(jsNumberString(round2(Double(min) / unitMinutes(u, s))))\(SUFFIX[u]!)"
 }
 

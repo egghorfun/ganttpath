@@ -304,3 +304,81 @@ private func localDate(_ y: Int, _ mo: Int, _ d: Int, _ h: Int = 0, _ mi: Int = 
         #expect(mppReaderFailureMessage("").hasPrefix("The .mpp file could not be read. In MS Project"))
     }
 }
+
+@Suite struct CustomFieldExportTests {
+    /// The element orders of MS Project's schema, as MPXJ's generated schema classes list them.
+    static let defOrder = ["FieldID", "FieldName", "CFType", "Guid", "ElemType", "MaxMultiValues", "UserDef", "Alias"]
+    static let valueOrder = ["FieldID", "Value", "ValueGUID", "DurationFormat"]
+
+    @Test func customColumnsGoToMSProjectFieldsAndComeBack() throws {
+        let s = fresh()
+        let a = add(s, "A", 1, days: 2)
+        let b = add(s, "B", 1, days: 3)
+        var ids: [String: String] = [:]
+        for (name, type) in [("Contractor", "text"), ("Area", "list"), ("Qty", "number"), ("Long lead", "flag"), ("Delivery", "date")] {
+            let r = s.run("Col") { p, _ in try addCustomColumn(&p, name: name, type: type, options: type == "list" ? ["North", "South"] : []) }
+            ids[name] = r.value!
+        }
+        s.run("Values") { p, _ in
+            try setCustomValue(&p, a, ids["Contractor"]!, .string("ACME & Sons <Pte>"))
+            try setCustomValue(&p, a, ids["Area"]!, .string("North"))
+            try setCustomValue(&p, a, ids["Qty"]!, .number(12.5))
+            try setCustomValue(&p, a, ids["Long lead"]!, .bool(true))
+            try setCustomValue(&p, a, ids["Delivery"]!, .string("2026-11-02"))
+            try setCustomValue(&p, b, ids["Qty"]!, .number(-3))
+            try setCustomValue(&p, b, ids["Long lead"]!, .bool(false))
+        }
+        let out = exportMSPDI(s.project, s.sched)
+        #expect(!out.notes.contains { $0.contains("custom column") })
+        let root = try parseXml(out.xml)
+        let defs = kids(root.kid("ExtendedAttributes"), "ExtendedAttribute")
+        #expect(defs.map { "\($0.kidText("FieldName")!)=\($0.kidText("Alias") ?? "")" } == ["Text1=Contractor", "Text2=Area", "Flag1=Long lead", "Number1=Qty", "Date1=Delivery"])
+        #expect(defs.map { Int($0.kidText("FieldID")!)! } == [188743731, 188743734, 188743752, 188743767, 188743945])
+        for d in defs { var last = -1; for c in d.children { let k = Self.defOrder.firstIndex(of: c.name)!; #expect(k > last); last = k } }
+        let taskA = kids(root.kid("Tasks"), "Task").first { $0.kidText("Name") == "A" }!
+        let vals = taskA.kids("ExtendedAttribute").map { "\($0.kidText("FieldID")!)=\($0.kidText("Value")!)" }
+        #expect(vals == ["188743731=ACME & Sons <Pte>", "188743734=North", "188743752=1", "188743767=12.5", "188743945=2026-11-02T08:00:00"])
+        // the ExtendedAttribute elements sit where the schema puts them among the task's elements
+        try checkAllOrders(out.xml)
+        let taskB = kids(root.kid("Tasks"), "Task").first { $0.kidText("Name") == "B" }!
+        #expect(taskB.kids("ExtendedAttribute").map { $0.kidText("Value")! } == ["-3"]) // a flag that is off is not written
+
+        // back in: the same columns, named by their alias, with the same values
+        let back = try importMSPDI(out.xml)
+        let cols = back.project.customColumns
+        #expect(cols.map { $0.name } == ["Contractor", "Area", "Long lead", "Qty", "Delivery"])
+        #expect(cols.map { $0.type } == ["text", "text", "flag", "number", "date"]) // a list comes back as text: MS Project has no list here
+        let ba = back.project.tasks.first { $0.name == "A" }!
+        #expect(ba.custom["ms188743731"] == .string("ACME & Sons <Pte>"))
+        #expect(ba.custom["ms188743767"] == .number(12.5) && ba.custom["ms188743752"] == .bool(true) && ba.custom["ms188743945"] == .string("2026-11-02"))
+        // and out again: imported fields keep their MS Project field
+        let again = try parseXml(exportMSPDI(back.project, schedule(back.project)).xml)
+        #expect(kids(again.kid("ExtendedAttributes"), "ExtendedAttribute").map { $0.kidText("FieldName")! } == ["Text1", "Text2", "Flag1", "Number1", "Date1"])
+    }
+
+    @Test func importedFieldsKeepTheirFieldAndDurationsGoBackAsDurations() throws {
+        var p = newProject(name: "F", startDate: "2026-10-05")
+        p.customColumns = [CustomColumn(id: "ms188744016", name: "Text30", type: "text"), CustomColumn(id: "ms188743783", name: "Cure time", type: "text"),
+                           CustomColumn(id: "ms188743786", name: "Cost1", type: "number"), CustomColumn(id: "c1", name: "Mine", type: "text")]
+        _ = insertTask(&p, 0, level: 1, name: "A", durationDays: 1)
+        p.tasks[0].custom["ms188744016"] = .string("last text")
+        p.tasks[0].custom["ms188743783"] = .string("1.5d")
+        p.tasks[0].custom["ms188743786"] = .number(1500)
+        p.tasks[0].custom["c1"] = .string("mine")
+        let root = try parseXml(exportMSPDI(p, schedule(p)).xml)
+        let defs = kids(root.kid("ExtendedAttributes"), "ExtendedAttribute").map { "\($0.kidText("FieldName")!)=\($0.kidText("Alias") ?? "")" }
+        #expect(defs == ["Text1=Mine", "Duration1=Cure time", "Cost1=", "Text30="])
+        let ea = kids(root.kid("Tasks"), "Task").first { $0.kidText("Name") == "A" }!.kids("ExtendedAttribute")
+        let dur = ea.first { $0.kidText("FieldID") == "188743783" }!
+        #expect(dur.kidText("Value") == "PT12H0M0S" && dur.kidText("DurationFormat") == "7")
+        #expect(ea.first { $0.kidText("FieldID") == "188743786" }?.kidText("Value") == "1500")
+    }
+
+    @Test func noFreeFieldIsReported() throws {
+        var p = newProject(name: "F", startDate: "2026-10-05")
+        for k in 1...11 { p.customColumns.append(CustomColumn(id: "d\(k)", name: "D\(k)", type: "date")) }
+        let out = exportMSPDI(p, schedule(p))
+        #expect(out.notes.contains("1 custom column could not be written, as MS Project has no free field of that kind left: D11."))
+        #expect(kids(try parseXml(out.xml).kid("ExtendedAttributes"), "ExtendedAttribute").count == 10)
+    }
+}

@@ -3,7 +3,7 @@
 // Project shape (schema 2):
 //   { schema, name, nextUid, settings{...}, calendars[], tags[], customColumns[], tasks[] }
 // Task shape:
-//   { uid, name, level, mode:'auto'|'manual', dur (working minutes), durUnit ('m'|'h'|'d'|'w'|'mo': the unit it is shown in),
+//   { uid, name, level, mode:'auto'|'manual', dur (working minutes), durUnit ('m'|'h'|'d'|'w'|'mo', or elapsed 'em'|'eh'|'ed'|'ew'|'emo': the unit it is shown in),
 //     start, finish, milestone, constraint{type,date}, deadline,
 //     preds[{uid,type,lag{v,u}}], pct, actualStart, actualFinish, calendarId, weight, baselines[6 or 11], tags[], color,
 //     custom{}, notes, collapsed, ... }
@@ -326,7 +326,7 @@ extension Task {
             t.dur = max(0, jsRoundInt((days.isNaN ? 0 : days) * Double(dayMinOf(settings))))
         }
         let du = str(o["durUnit"]) ?? ""
-        t.durUnit = UNITS.contains(du) ? du : "d"
+        t.durUnit = isDurationUnit(du) ? du : "d"
         t.start = dateField(o["start"])
         t.finish = dateField(o["finish"])
         t.milestone = truthy(o["milestone"])

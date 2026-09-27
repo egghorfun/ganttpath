@@ -126,7 +126,7 @@ public func normalizeProject(_ p: inout Project, uidValid: [Bool]? = nil) {
         t.level = max(1, t.level)
         if t.mode != "manual" { t.mode = "auto" }
         t.dur = max(0, t.dur)
-        if !UNITS.contains(t.durUnit) { t.durUnit = "d" }
+        if !isDurationUnit(t.durUnit) { t.durUnit = "d" }
         t.preds = t.preds.filter { seen.contains($0.uid) && $0.uid != t.uid }
         t.pct = min(100, max(0, t.pct.isNaN ? 0 : t.pct))
         if t.baselines.count > BASELINE_COUNT { t.baselines = Array(t.baselines.prefix(BASELINE_COUNT)) }
@@ -164,7 +164,12 @@ public func calendarDefOf(_ p: Project, _ task: Task?) -> CalendarDef {
     if let id = task?.calendarId, !id.isEmpty, let d = p.calendars.first(where: { $0.id == id }) { return d }
     return p.calendars.first { $0.id == p.settings.defaultCalendarId } ?? p.calendars[0]
 }
-public func calendarOf(_ p: Project, _ task: Task?) -> Cal { Cal(calendarDefOf(p, task)) }
+public func calendarOf(_ p: Project, _ task: Task?) -> Cal {
+    if let t = task, isElapsedUnit(t.durUnit) { return ELAPSED_CAL }
+    return Cal(calendarDefOf(p, task))
+}
+/// The round-the-clock calendar of elapsed-duration tasks.
+public let ELAPSED_CAL = Cal(ELAPSED_CALENDAR)
 public func projectCalendar(_ p: Project) -> Cal { calendarOf(p, nil) }
 
 /// Index just after the last descendant of task i.
@@ -500,9 +505,22 @@ public func setName(_ p: inout Project, _ uid: Int, _ name: String?) throws {
 
 // ---- working-time helpers for manual tasks (their start and finish are typed dates that follow their duration)
 /// The moment a task can start at when `st` is typed as its start: the first working moment at or after it.
-func startTickOf(_ cal: Cal, _ st: Stamp) -> Int { cal.normStart(st.dn * DAY_MIN + (st.min ?? 0)) }
+func startTickOf(_ cal: Cal, _ st: Stamp, _ pc: Cal? = nil) -> Int {
+    if cal === ELAPSED_CAL, let pc = pc { return elapsedTick(pc, st, finish: false) }
+    return cal.normStart(st.dn * DAY_MIN + (st.min ?? 0))
+}
+/// For an elapsed-duration task a date without a time means the start (or the end) of that day's working time in the project
+/// calendar - 08:00 or 17:00 with the usual hours, as MS Project places elapsed tasks. A time given is kept as it is.
+public func elapsedTick(_ pc: Cal, _ st: Stamp, finish: Bool) -> Int {
+    if let m = st.min { return st.dn * DAY_MIN + m }
+    if finish { return pc.dayEnd(st.dn) ?? (st.dn * DAY_MIN + (pc.stdPeriods.last?.e ?? 1020)) }
+    return pc.dayStart(st.dn) ?? (st.dn * DAY_MIN + (pc.stdPeriods.first?.s ?? 480))
+}
 /// The moment a task can finish at when `st` is typed as its finish: without a time, the end of that working day.
-func finishTickOf(_ cal: Cal, _ st: Stamp) -> Int { cal.normFinish(st.min == nil ? (st.dn + 1) * DAY_MIN : st.dn * DAY_MIN + st.min!) }
+func finishTickOf(_ cal: Cal, _ st: Stamp, _ pc: Cal? = nil) -> Int {
+    if cal === ELAPSED_CAL, let pc = pc { return elapsedTick(pc, st, finish: true) }
+    return cal.normFinish(st.min == nil ? (st.dn + 1) * DAY_MIN : st.dn * DAY_MIN + st.min!)
+}
 /// Stored text for a tick: a date, or a date and time when the time matters.
 func stampOfTick(_ tick: Int, _ isFinish: Bool, _ timed: Bool) -> String {
     let dn = floorDiv(isFinish ? tick - 1 : tick, DAY_MIN)
@@ -520,7 +538,7 @@ public func placeManual(_ p: inout Project, _ i: Int, _ st: Stamp) {
     let cal = calendarOf(p, t)
     let d = taskMin(t, p.settings)
     if d == 0 { p.tasks[i].start = toStamp(st.dn, st.min); p.tasks[i].finish = p.tasks[i].start; return }
-    let s = startTickOf(cal, st)
+    let s = startTickOf(cal, st, projectCalendar(p))
     let f = cal.finishAt(cal.posOf(s) + d)
     let timed = isTimed(cal, t, s, f)
     p.tasks[i].start = stampOfTick(s, false, timed)
@@ -541,7 +559,7 @@ public func setDuration(_ p: inout Project, _ uid: Int, _ spec: DurationSpec) th
     if isSummaryAt(p, i) { throw ModelError("A summary task takes its duration from its sub-tasks") }
     let min = spec.min
     var unit = p.tasks[i].durUnit.isEmpty ? "d" : p.tasks[i].durUnit
-    if UNITS.contains(spec.unit) { unit = spec.unit }
+    if isDurationUnit(spec.unit) { unit = spec.unit }
     if min < 0 { throw ModelError("Duration must be zero or more working time") }
     p.tasks[i].dur = min
     p.tasks[i].durUnit = unit
@@ -581,9 +599,9 @@ public func setFinish(_ p: inout Project, _ uid: Int, _ iso: String?) throws {
     let cal = calendarOf(p, t)
     let st = parseStamp(t.start) ?? Stamp(dn: fin.dn, min: nil)
     if fin.dn < st.dn { throw ModelError("Finish cannot be before start") }
-    let s = startTickOf(cal, st)
+    let s = startTickOf(cal, st, projectCalendar(p))
     if taskMin(t, p.settings) == 0 && fin.dn == st.dn { p.tasks[i].finish = t.start; return }
-    var f = finishTickOf(cal, fin)
+    var f = finishTickOf(cal, fin, projectCalendar(p))
     var d = cal.posOf(f) - cal.posOf(s)
     if d <= 0 {
         if fin.min != nil { throw ModelError("Finish cannot be before start") }
@@ -757,8 +775,8 @@ public func resizeBarTo(_ p: inout Project, _ uid: Int, _ newFinishDn: Int, _ sc
     let r: ScheduledTask? = sched.flatMap { i < $0.tasks.count ? $0.tasks[i] : nil }
     guard let st = parseStamp(nonEmpty(r?.startStamp) ?? nonEmpty(r?.start) ?? t.start) else { throw ModelError("Task has no start date yet") }
     let cal = calendarOf(p, t)
-    let s = r?.startTick ?? startTickOf(cal, st)
-    let f = cal.normFinish((newFinishDn + 1) * DAY_MIN)
+    let s = r?.startTick ?? startTickOf(cal, st, projectCalendar(p))
+    let f = cal === ELAPSED_CAL ? elapsedTick(projectCalendar(p), Stamp(dn: newFinishDn, min: nil), finish: true) : cal.normFinish((newFinishDn + 1) * DAY_MIN)
     let d = max(0, cal.posOf(f) - cal.posOf(s))
     try setDuration(&p, uid, DurationSpec(min: d == 0 && t.milestone ? dayMinOf(p.settings) : d, unit: t.durUnit.isEmpty ? "d" : t.durUnit))
 }

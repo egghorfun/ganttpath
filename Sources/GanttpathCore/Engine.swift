@@ -177,10 +177,13 @@ public func schedule(_ project: Project) -> ScheduleResult {
         calMap[def.id] = c
     }
     let projCal: Cal = calMap[settings.defaultCalendarId] ?? calOrder.first ?? Cal(CalendarDef(id: "", name: "", workWeek: MON_FRI, exceptions: []))
-    let calOf: [Cal] = T.map { t in (t.calendarId.flatMap { $0.isEmpty ? nil : calMap[$0] }) ?? projCal }
-
     // ---- structure
     let isSummary = summaryFlags(T)
+    // an elapsed-duration task runs round the clock (MS Project: 24 hours a day, 7 days a week, holidays included)
+    let calOf: [Cal] = T.enumerated().map { i, t in
+        if !isSummary[i] && isElapsedUnit(t.durUnit) { return ELAPSED_CAL }
+        return (t.calendarId.flatMap { $0.isEmpty ? nil : calMap[$0] }) ?? projCal
+    }
     // An inactive task stays in the plan but takes no part in the schedule (MS Project): its links are ignored, it keeps the dates it
     // had, it is not part of its summary task or of the project dates, and it has no slack and is never critical.
     let inactive = (0..<n).map { !isSummary[$0] && T[$0].inactive }
@@ -253,15 +256,24 @@ public func schedule(_ project: Project) -> ScheduleResult {
     func snapStartBack(_ c: Cal, _ t: Int) -> Int { c.isWorkingMoment(t) ? t : (c.dayStart(c.prev(floorDiv(t, DAY_MIN))) ?? 0) }
     func pos(_ c: Cal, _ t: Int) -> Int { c.posOf(t) }
     // A date typed without a time means the start of that working day (for a start) or the end of it (for a finish).
-    func startDay(_ c: Cal, _ dn: Int) -> Int { c.dayStart(dn) ?? dn * DAY_MIN }
-    func endDay(_ c: Cal, _ dn: Int) -> Int { c.dayEnd(dn) ?? (dn + 1) * DAY_MIN }
+    // (For an elapsed task, on the round-the-clock calendar, that working day is the project calendar's: see elapsedTick.)
+    func startDay(_ c: Cal, _ dn: Int) -> Int {
+        if c === ELAPSED_CAL { return elapsedTick(projCal, Stamp(dn: dn, min: nil), finish: false) }
+        return c.dayStart(dn) ?? dn * DAY_MIN
+    }
+    func endDay(_ c: Cal, _ dn: Int) -> Int {
+        if c === ELAPSED_CAL { return elapsedTick(projCal, Stamp(dn: dn, min: nil), finish: true) }
+        return c.dayEnd(dn) ?? (dn + 1) * DAY_MIN
+    }
     /// First moment a task (or milestone) can start at when a date (or date and time) is required as its start.
     func startFromStamp(_ c: Cal, _ st: Stamp, _ zero: Bool) -> Int {
+        if c === ELAPSED_CAL { return elapsedTick(projCal, st, finish: false) }
         let t = st.dn * DAY_MIN + (st.min ?? 0)
         return zero && st.min != nil ? normZero(c, t) : c.normStart(t)
     }
     /// Moment a task can finish at when a date (or date and time) is required as its finish.
     func finishFromStamp(_ c: Cal, _ st: Stamp, _ zero: Bool) -> Int {
+        if c === ELAPSED_CAL { return elapsedTick(projCal, st, finish: !zero || st.min != nil) }
         guard let m = st.min else {
             if !zero { return c.normFinish((st.dn + 1) * DAY_MIN) }
             return c.isWorking(st.dn) ? c.dayEnd(st.dn)! : c.normStart((st.dn + 1) * DAY_MIN)
@@ -270,7 +282,10 @@ public func schedule(_ project: Project) -> ScheduleResult {
         return zero ? normZero(c, t) : c.normFinish(t)
     }
     /// Latest finish allowed by a "no later than" date: the last working moment at or before it.
-    func finishCap(_ c: Cal, _ st: Stamp) -> Int { c.normFinish(st.min == nil ? (st.dn + 1) * DAY_MIN : st.dn * DAY_MIN + st.min!) }
+    func finishCap(_ c: Cal, _ st: Stamp) -> Int {
+        if c === ELAPSED_CAL { return elapsedTick(projCal, st, finish: true) }
+        return c.normFinish(st.min == nil ? (st.dn + 1) * DAY_MIN : st.dn * DAY_MIN + st.min!)
+    }
     func startRaw(_ c: Cal, _ st: Stamp) -> Int { st.min == nil ? startDay(c, st.dn) : st.dn * DAY_MIN + st.min! }
     /// shift a tick by a signed lag: working lags move along the working time of calendar c, elapsed lags along the clock
     func lagShift(_ c: Cal, _ t: Int, _ lag: Lag, _ predMin: Int, _ sign: Int, _ asFinish: Bool) -> Int {

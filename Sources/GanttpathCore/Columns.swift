@@ -170,7 +170,7 @@ public func builtinColumns(_ project: Project, _ sched: ScheduleResult?) -> [Col
                        edit: ColumnEdit(kind: .text, prose: true, raw: { $0.t.name }),
                        commit: { v, x in let uid = x.uid; return { p, _ in try setName(&p, uid, v) } }))
     C.append(ColumnDef(id: "duration", title: "Duration", width: 74, align: .right, sortField: "duration", text: { $0.fmt.dur($0.r) },
-                       edit: ColumnEdit(kind: .text, hint: "Type 5 or 5d for days, 6h for hours, 30m for minutes, 2w for weeks, 1mo for months. Type 0 for a milestone. Type \"month\" to cover the whole month of the start date.",
+                       edit: ColumnEdit(kind: .text, hint: "Type 5 or 5d for days, 6h for hours, 30m for minutes, 2w for weeks, 1mo for months. Add e for elapsed time that runs round the clock, weekends included: 3ed, 12eh, 2ew. Type 0 for a milestone. Type \"month\" to cover the whole month of the start date.",
                                         raw: { $0.fmt.dur($0.r) }, disabled: { $0.r.isSummary }),
                        commit: { v, x in
                            let uid = x.uid
@@ -179,7 +179,7 @@ public func builtinColumns(_ project: Project, _ sched: ScheduleResult?) -> [Col
                                return { p, _ in try setMonthTask(&p, uid, dn) }
                            }
                            guard let d = parseDuration(v, x.project.settings, "d") else {
-                               throw ModelError("\"\(v)\" is not a duration. Type a number of days (5), hours (6h), minutes (30m), weeks (2w), months (1mo) or \"month\".")
+                               throw ModelError("\"\(v)\" is not a duration. Type a number of days (5), hours (6h), minutes (30m), weeks (2w), months (1mo), elapsed time (3ed, 12eh) or \"month\".")
                            }
                            return { p, _ in try setDuration(&p, uid, d) }
                        }))
