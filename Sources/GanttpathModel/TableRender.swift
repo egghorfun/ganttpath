@@ -84,7 +84,7 @@ extension DocumentModel {
                 items.append(D.line(0, y + ROW_H - 0.5, g.total, y + ROW_H - 0.5, grid))
             case .task(let i):
                 let t = project.tasks[i], r = sched.tasks[i]
-                let c = CellContext(project: project, sched: sched, index: i, fmt: f, showBaseline: showBaseline, viewActive: false)
+                let c = CellContext(project: project, sched: sched, index: i, fmt: f, showBaseline: showBaseline, viewActive: false, compareBaseline: compareBaseline)
                 let sel = selection.contains(t.uid)
                 let cutRow = clip.map { $0.cut && $0.kind == .rows && $0.uidSet.contains(t.uid) } ?? false
                 var bg: RGBA? = nil

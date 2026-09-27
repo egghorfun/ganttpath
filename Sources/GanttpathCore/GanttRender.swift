@@ -143,6 +143,10 @@ public func barState(_ t: Task, _ r: ScheduledTask, showCritical: Bool) -> BarSt
 /// What the chart shows. Mirrors chartOptions() of the JS app.
 public struct GanttOptions: Sendable {
     public var showBaseline: Int = -1
+    /// A second baseline to compare with the shown one (-1 none); drawn as a second thin bar in the "baseline2" colour.
+    public var compareBaseline: Int = -1
+    /// The compared baseline when it is in use (a baseline is shown and the compared one is another one).
+    public var comparing: Int? { showBaseline >= 0 && compareBaseline >= 0 && compareBaseline != showBaseline ? compareBaseline : nil }
     public var showCritical = true
     public var showLabels = true
     public var showLinks = true
@@ -196,9 +200,9 @@ public func ganttLayout(project p: Project, sched sc: ScheduleResult, rows: [Row
                         opts: GanttOptions, previousOrigin: Int? = nil, measurer: TextMeasurer = HelveticaMeasurer()) -> (originDn: Int, endDn: Int) {
     var lo = parseISO(sc.projectStart) ?? parseISO(p.settings.startDate) ?? todayDn()
     var hi = sc.projectFinish != nil ? (parseISO(sc.projectFinish) ?? lo + 30) : lo + 30
-    if opts.showBaseline >= 0 {
+    for n in [opts.showBaseline, opts.comparing ?? -1] where n >= 0 {
         for t in p.tasks {
-            guard opts.showBaseline < t.baselines.count, let b = t.baselines[opts.showBaseline] else { continue }
+            guard n < t.baselines.count, let b = t.baselines[n] else { continue }
             if let s = parseISO(b.start), s < lo { lo = s }
             if let f = parseISO(b.finish), f > hi { hi = f }
         }
@@ -405,7 +409,20 @@ public func ganttBody(project: Project, sched: ScheduleResult, rows: [RowItem], 
         let pctC = min(100, r.pct) / 100
 
         // baseline under the bar
-        if let bl = bl, let bs = parseISO(bl.start), let bf = parseISO(bl.finish) {
+        if let cmp = opts.comparing {
+            // two baselines: the shown one and, just under it, the compared one, each 3 px high
+            let second: Baseline? = cmp < t.baselines.count ? t.baselines[cmp] : nil
+            for (b, off, key) in [(bl, 18.0, "baseline"), (second, 22.0, "baseline2")] {
+                guard let b = b, let bs = parseISO(b.start), let bf = parseISO(b.finish) else { continue }
+                let top = y + off
+                let bx = Double(bs - originDn) * px
+                if g.kind == .milestone || b.duration == 0 {
+                    items.append(D.poly([(bx, top), (bx + 3, top + 1.75), (bx, top + 3.5), (bx - 3, top + 1.75)], fill: c(key), closed: true))
+                } else {
+                    items.append(D.rect(bx, top, max(2, Double(bf + 1 - bs) * px), 3, fill: c(key), r: 1))
+                }
+            }
+        } else if let bl = bl, let bs = parseISO(bl.start), let bf = parseISO(bl.finish) {
             let bx = Double(bs - originDn) * px
             if g.kind == .milestone || bl.duration == 0 {
                 items.append(D.poly([(bx, y + 19), (bx + 4, y + 22.5), (bx, y + 26), (bx - 4, y + 22.5)], fill: c("baseline"), closed: true))

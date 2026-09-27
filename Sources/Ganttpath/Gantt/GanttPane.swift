@@ -91,7 +91,7 @@ final class GanttPaneView: FlippedView, NSViewToolTipOwner {
         withObservationTracking {
             _ = model.revision; _ = model.built.rows.count; _ = model.selection; _ = model.cursorUid; _ = model.cursorCol; _ = model.anchorCol
             _ = model.px; _ = model.view; _ = model.clip?.text; _ = model.linkSel; _ = model.columnIds; _ = model.colWidths; _ = model.tableWidth
-            _ = model.showBaseline; _ = model.showCritical; _ = model.showLabels; _ = model.showLinks; _ = model.progressLine; _ = model.selMode
+            _ = model.showBaseline; _ = model.compareBaseline; _ = model.showCritical; _ = model.showLabels; _ = model.showLinks; _ = model.progressLine; _ = model.selMode
             _ = state.prefsVersion; _ = state.systemDark
         } onChange: { [weak self] in
             DispatchQueue.main.async { self?.refresh() }

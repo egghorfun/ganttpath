@@ -260,7 +260,8 @@ final class AppState {
     }
 
     func exportReportPDF(_ key: String) {
-        let pages = reportPrintPages(key, model.project, model.sched, printContext)
+        let bl = model.reportBaselines
+        let pages = reportPrintPages(key, model.project, model.sched, printContext, baselineIndex: bl.base, compareIndex: bl.compare)
         if pages.isEmpty { model.say("There is nothing to print for this report."); return }
         let def = REPORT_DEFS.first { $0.key == key }
         let name = "\(model.project.name)_\((def?.name ?? key).replacingOccurrences(of: " ", with: ""))_\(p.pageSettings.normalized.paper)"

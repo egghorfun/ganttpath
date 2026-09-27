@@ -17,6 +17,7 @@ public struct Prefs: Equatable, Sendable {
     public var colWidths: [String: Double] = [:]
     public var tableWidth: Double? = nil
     public var showBaseline: Int? = nil
+    public var compareBaseline: Int? = nil
     public var inspectorOpen = false
     public var progressLine = false
     public var pageSettings = PageSettings()
@@ -47,6 +48,7 @@ public struct Prefs: Equatable, Sendable {
         if let w = take("colWidths")?.object { for (k, v) in w.pairs { if let n = v.number, n.isFinite { p.colWidths[k] = n } } }
         if let n = take("tableWidth")?.number, n.isFinite { p.tableWidth = n }
         if let n = take("showBaseline")?.number, n.isFinite { p.showBaseline = Int(n) }
+        if let n = take("compareBaseline")?.number, n.isFinite { p.compareBaseline = Int(n) }
         if let b = take("inspectorOpen")?.bool { p.inspectorOpen = b }
         if let b = take("progressLine")?.bool { p.progressLine = b }
         if let ps = take("pageSettings")?.object {
@@ -76,6 +78,7 @@ public struct Prefs: Equatable, Sendable {
         o["colWidths"] = .object(w)
         if let t = tableWidth { o["tableWidth"] = .number(t) }
         if let b = showBaseline { o["showBaseline"] = .number(Double(b)) }
+        if let b = compareBaseline { o["compareBaseline"] = .number(Double(b)) }
         o["inspectorOpen"] = .bool(inspectorOpen)
         o["progressLine"] = .bool(progressLine)
         o["pageSettings"] = .object(JSONObject([("paper", .string(pageSettings.paper)), ("marginMM", .number(pageSettings.marginMM))]))

@@ -765,7 +765,7 @@ public func importMSPDI(_ xmlText: String, fileName: String = "Imported project"
     if st["crossLinks"]! > 0 { note("warn", "\(st["crossLinks"]!) link(s) to other project files were skipped.") }
     if st["badLinks"]! > 0 { note("warn", "\(st["badLinks"]!) link(s) pointing at missing tasks were skipped.") }
     if st["elapsedDurations"]! > 0 { note("warn", "\(st["elapsedDurations"]!) task(s) use elapsed durations in MS Project; they are treated as working days here (e.g. \(exElapsed.joined(separator: "; "))).") }
-    if st["baselinesSkipped"]! > 0 { note("info", "\(st["baselinesSkipped"]!) baseline(s) above Baseline 5 were skipped.") }
+    if st["baselinesSkipped"]! > 0 { note("info", "\(st["baselinesSkipped"]!) baseline(s) above Baseline 10 were skipped.") }
     if st["badConstraints"]! > 0 { note("warn", "\(st["badConstraints"]!) constraint(s) without a date were changed to As Soon As Possible.") }
     if st["summaryConstraints"]! > 0 { note("info", "\(st["summaryConstraints"]!) summary task(s) had their own constraint; summary tasks take their dates from their sub-tasks here, so it was ignored.") }
     if skippedCalendars > 0 { note("info", "\(skippedCalendars) resource calendar(s) were skipped.") }

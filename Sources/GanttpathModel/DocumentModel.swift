@@ -120,6 +120,17 @@ public final class DocumentModel {
     public var tab: ViewTab = .gantt
     public var px: Double = ZOOM_BASE_PX
     public var showBaseline = -1
+    /// A second baseline compared with the shown one (-1 none).
+    public var compareBaseline = -1
+    /// The baselines the reports use: the shown one (Baseline when none is shown) and the compared one.
+    public var reportBaselines: (base: Int, compare: Int) { (showBaseline >= 0 ? showBaseline : 0, compareBaseline) }
+    /// Show a baseline and compare it with another (or -1 for none); remembered in the preferences.
+    public func setBaselines(show: Int, compare: Int) {
+        showBaseline = show
+        compareBaseline = show >= 0 && compare != show ? compare : -1
+        let s = showBaseline, c = compareBaseline
+        setPrefs { $0.showBaseline = s; $0.compareBaseline = c }
+    }
     public var showCritical = true
     public var showLabels = true
     public var showLinks = true
@@ -166,6 +177,7 @@ public final class DocumentModel {
         colWidths = p.colWidths
         tableWidth = p.tableWidth
         if let b = p.showBaseline { showBaseline = b }
+        if let b = p.compareBaseline { compareBaseline = b }
         inspectorOpen = p.inspectorOpen
         progressLine = p.progressLine
     }
@@ -207,7 +219,7 @@ public final class DocumentModel {
     public func index(of uid: Int) -> Int? { let i = indexOfUid(project, uid); return i < 0 ? nil : i }
     public func context(_ uid: Int) -> CellContext? {
         guard let i = index(of: uid) else { return nil }
-        return CellContext(project: project, sched: sched, index: i, fmt: fmt, showBaseline: showBaseline, viewActive: !outlinePlain)
+        return CellContext(project: project, sched: sched, index: i, fmt: fmt, showBaseline: showBaseline, viewActive: !outlinePlain, compareBaseline: compareBaseline)
     }
 
     /// True when rows are shown in the full, plain outline (no sort, group, filter or search): the only case where rows can move.
@@ -220,6 +232,7 @@ public final class DocumentModel {
     public var ganttOptions: GanttOptions {
         var o = GanttOptions()
         o.showBaseline = showBaseline
+        o.compareBaseline = compareBaseline
         o.showCritical = showCritical
         o.showLabels = showLabels
         o.showLinks = showLinks

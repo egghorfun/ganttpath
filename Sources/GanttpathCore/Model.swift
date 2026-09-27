@@ -8,8 +8,8 @@
 import Foundation
 
 public let SCHEMA = 2 // 2: durations are stored in working minutes (dur) instead of whole days
-public let BASELINE_COUNT = 6 // Baseline + Baseline 1..5
-public let BASELINE_NAMES = ["Baseline", "Baseline 1", "Baseline 2", "Baseline 3", "Baseline 4", "Baseline 5"]
+public let BASELINE_COUNT = 11 // Baseline + Baseline 1..10, as in MS Project
+public let BASELINE_NAMES = ["Baseline"] + (1...10).map { "Baseline \($0)" }
 
 public struct ModelError: Error, CustomStringConvertible, Equatable {
     public let message: String
@@ -766,7 +766,7 @@ public func resizeBarTo(_ p: inout Project, _ uid: Int, _ newFinishDn: Int, _ sc
 // MARK: - baselines
 /// Save the current schedule as baseline `n` (0 = "Baseline", 1..5) for the given uids (all tasks when nil).
 public func setBaseline(_ p: inout Project, _ n: Int, _ sched: ScheduleResult, _ uids: [Int]? = nil) throws {
-    if !(n >= 0 && n < BASELINE_COUNT) { throw ModelError("Baseline number must be 0 to 5") }
+    if !(n >= 0 && n < BASELINE_COUNT) { throw ModelError("Baseline number must be 0 to 10") }
     let only = uids.map(Set.init)
     for i in p.tasks.indices {
         if let o = only, !o.contains(p.tasks[i].uid) { continue }
@@ -777,7 +777,7 @@ public func setBaseline(_ p: inout Project, _ n: Int, _ sched: ScheduleResult, _
 }
 
 public func clearBaseline(_ p: inout Project, _ n: Int, _ uids: [Int]? = nil) throws {
-    if !(n >= 0 && n < BASELINE_COUNT) { throw ModelError("Baseline number must be 0 to 5") }
+    if !(n >= 0 && n < BASELINE_COUNT) { throw ModelError("Baseline number must be 0 to 10") }
     let only = uids.map(Set.init)
     for i in p.tasks.indices where only == nil || only!.contains(p.tasks[i].uid) { p.tasks[i].baselines[n] = nil }
 }

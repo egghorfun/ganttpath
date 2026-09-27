@@ -54,14 +54,14 @@ public func mixColor(_ a: String, _ pctA: Double, _ b: String) -> String {
 
 // MARK: - Theme (the JavaScript app's theme.js)
 
-public let COLOR_KEYS = ["task", "summary", "critical", "conflict", "near", "today", "arrow", "baseline", "status", "progressline"]
+public let COLOR_KEYS = ["task", "summary", "critical", "conflict", "near", "today", "arrow", "baseline", "baseline2", "status", "progressline"]
 public let PALETTE: [String: [String: String]] = [
-    "light": ["task": "#2563EB", "summary": "#1E293B", "critical": "#C62828", "conflict": "#D6007D", "near": "#D97706", "today": "#0891B2", "arrow": "#64748B", "baseline": "#94A3B8", "status": "#7C3AED", "progressline": "#15803D"],
-    "dark": ["task": "#6EA8FF", "summary": "#CBD5E1", "critical": "#FF6B6B", "conflict": "#FF4FC3", "near": "#FFB84D", "today": "#22D3EE", "arrow": "#94A3B8", "baseline": "#64748B", "status": "#A78BFA", "progressline": "#4ADE80"],
+    "light": ["task": "#2563EB", "summary": "#1E293B", "critical": "#C62828", "conflict": "#D6007D", "near": "#D97706", "today": "#0891B2", "arrow": "#64748B", "baseline": "#94A3B8", "baseline2": "#0D9488", "status": "#7C3AED", "progressline": "#15803D"],
+    "dark": ["task": "#6EA8FF", "summary": "#CBD5E1", "critical": "#FF6B6B", "conflict": "#FF4FC3", "near": "#FFB84D", "today": "#22D3EE", "arrow": "#94A3B8", "baseline": "#64748B", "baseline2": "#2DD4BF", "status": "#A78BFA", "progressline": "#4ADE80"],
 ]
 public let COLOR_LABELS: [String: String] = [
     "task": "Normal task bar", "summary": "Summary and milestone", "critical": "Critical path", "conflict": "Conflict (magenta)", "near": "Near-critical",
-    "today": "Today line", "arrow": "Link arrows", "baseline": "Baseline bar", "status": "Status date line", "progressline": "Progress line",
+    "today": "Today line", "arrow": "Link arrows", "baseline": "Baseline bar", "baseline2": "Compared baseline bar", "status": "Status date line", "progressline": "Progress line",
 ]
 /// A curated, print-safe palette used everywhere a colour must be chosen (schedule colours, tag colours, header/footer).
 /// Conflict uses magenta (not a shade of red) so it stays visually distinct from the red critical path on screen and in print.

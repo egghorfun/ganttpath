@@ -124,6 +124,8 @@ public let REPORT_DEFS: [ReportDef] = [
               blurb: "Incomplete tasks whose current Finish is later than their saved Baseline Finish. Tasks with no baseline saved are left out - there is nothing to compare against."),
     ReportDef(key: "milestones", name: "Milestone Report",
               blurb: "Every milestone, each read as Complete, Late or Upcoming against the status date (or today)."),
+    ReportDef(key: "baselines", name: "Baseline Changes",
+              blurb: "Tasks whose start or finish differs between the baseline shown and the compared baseline (choose both under Project ▸ Baselines). Shifts are in working time; positive means later in the compared baseline. Tasks saved in only one of the two baselines are listed as added or dropped."),
 ]
 
 /// The date "Late Tasks" and the milestone status are measured against: the project's status date if one is set, otherwise today.
@@ -137,6 +139,13 @@ public struct ReportRow: Sendable {
     public var baselineFinish: String? = nil
     public var slipDays: Int? = nil
     public var milestoneStatus: String? = nil
+    // Baseline Changes: the two baselines' dates, the shifts in working minutes, and what changed
+    public var baseStart: String? = nil
+    public var compareStart: String? = nil
+    public var compareFinish: String? = nil
+    public var startShift: Int? = nil
+    public var finishShift: Int? = nil
+    public var change: String? = nil
 }
 
 func leaves(_ sc: ScheduleResult) -> [ScheduledTask] { sc.tasks.filter { !$0.isSummary && !$0.inactive } }
@@ -172,15 +181,36 @@ public func milestoneRows(_ pr: Project, _ sc: ScheduleResult, today: Int = toda
     }
 }
 
+/// Tasks that differ between baseline `base` and baseline `compare` (see the "baselines" report).
+public func baselineChangeRows(_ pr: Project, _ sc: ScheduleResult, base: Int, compare: Int) -> [ReportRow] {
+    guard base >= 0, compare >= 0, base != compare, base < BASELINE_COUNT, compare < BASELINE_COUNT else { return [] }
+    return leaves(sc).compactMap { r in
+        let t = pr.tasks[r.index]
+        let a = t.baselines[base], b = t.baselines[compare]
+        if a == nil && b == nil { return nil }
+        var row = ReportRow(row: r, baselineFinish: a?.finish, baseStart: a?.start, compareStart: b?.start, compareFinish: b?.finish)
+        guard let a = a else { row.change = "Added in \(BASELINE_NAMES[compare])"; return row }
+        guard let b = b else { row.change = "Not in \(BASELINE_NAMES[compare])"; return row }
+        let x = CellContext(project: pr, sched: sc, index: r.index)
+        row.startShift = baselineShift(x, a, b, start: true)
+        row.finishShift = baselineShift(x, a, b, start: false)
+        if (row.startShift ?? 0) == 0 && (row.finishShift ?? 0) == 0 { return nil }
+        let f = row.finishShift ?? 0, s = row.startShift ?? 0
+        row.change = f > 0 ? "Finishes later" : f < 0 ? "Finishes earlier" : s > 0 ? "Starts later" : "Starts earlier"
+        return row
+    }
+}
+
 /// Whether any baseline has been saved anywhere in the project.
 public func hasAnyBaseline(_ pr: Project) -> Bool { pr.tasks.contains { $0.baselines.contains { $0 != nil } } }
 
-public func reportRows(_ key: String, _ pr: Project, _ sc: ScheduleResult, baselineIndex: Int = 0, today: Int = todayDn()) -> [ReportRow] {
+public func reportRows(_ key: String, _ pr: Project, _ sc: ScheduleResult, baselineIndex: Int = 0, compareIndex: Int = -1, today: Int = todayDn()) -> [ReportRow] {
     switch key {
     case "critical": return criticalTasksRows(sc)
     case "late": return lateTasksRows(pr, sc, today: today)
     case "slipping": return slippingTasksRows(pr, sc, baselineIndex: baselineIndex)
     case "milestones": return milestoneRows(pr, sc, today: today)
+    case "baselines": return baselineChangeRows(pr, sc, base: baselineIndex, compare: compareIndex)
     default: return []
     }
 }

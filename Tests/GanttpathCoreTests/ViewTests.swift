@@ -134,7 +134,7 @@ private func reportProject() -> (Session, (String, Double, [Pred]) -> Int) {
 
 @Suite struct ReportTests {
     @Test func reportDefsListTheFourStandardReports() {
-        #expect(REPORT_DEFS.map { $0.key } == ["critical", "late", "slipping", "milestones"])
+        #expect(REPORT_DEFS.map { $0.key } == ["critical", "late", "slipping", "milestones", "baselines"]) // Baseline Changes added in 1.5
         for r in REPORT_DEFS { #expect(!r.name.isEmpty); #expect(!r.blurb.isEmpty) }
     }
 

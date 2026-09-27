@@ -24,12 +24,16 @@ private func textsOf(_ items: [DrawItem]) -> [(String, Double, Double)] {
     return out
 }
 
+/// Table columns Ganttpath has that the JavaScript app 1.3.6 did not.
+public let COLUMNS_ADDED_AFTER_JS136: Set<String> = ["cmpBaselineStart", "cmpBaselineFinish", "baselineStartShift", "baselineFinishShift"]
+
 public func viewCheckJSON(_ input: Project, _ k: Int) -> JSON {
     do {
         var p = input
         let s = scheduleAndApply(&p)
         let showBaseline = (k % 3) - 1
-        let cols = allColumns(p, s)
+        // the columns the JavaScript app 1.3.6 had (later ones have their own tests)
+        let cols = allColumns(p, s).filter { !COLUMNS_ADDED_AFTER_JS136.contains($0.id) }
         let fmt = Fmt(p, s)
         var table: [JSON] = []
         for i in p.tasks.indices {

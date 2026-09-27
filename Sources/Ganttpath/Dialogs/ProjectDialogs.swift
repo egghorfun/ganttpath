@@ -680,14 +680,29 @@ struct BaselinesDialog: View {
         let m = state.model
         let p = m.project
         DialogFrame(title: "Baselines", width: 780) {
-            Text("A baseline is a snapshot of the schedule to measure progress against. There are six: Baseline and Baseline 1 to 5. The chart shows the selected one as a thin bar under each task.")
-            Picker("", selection: Binding(get: { m.showBaseline }, set: { v in m.showBaseline = v; state.updatePrefs { $0.showBaseline = v } })) {
-                Text("Do not show a baseline").tag(-1)
-                ForEach(0..<BASELINE_COUNT, id: \.self) { n in
-                    let count = p.tasks.filter { $0.baselines[n] != nil }.count
-                    Text("Show \(BASELINE_NAMES[n])").tag(n).disabled(count == 0)
+            Text("A baseline is a snapshot of the schedule to measure progress against. There are eleven, as in MS Project: Baseline and Baseline 1 to 10. The chart shows the selected one as a thin bar under each task.")
+            HStack(spacing: 16) {
+                LabeledField("Show under the bars") {
+                    Picker("", selection: Binding(get: { m.showBaseline }, set: { v in m.setBaselines(show: v, compare: m.compareBaseline); state.prefsVersion += 1 })) {
+                        Text("No baseline").tag(-1)
+                        ForEach(0..<BASELINE_COUNT, id: \.self) { n in
+                            Text(BASELINE_NAMES[n]).tag(n).disabled(!p.tasks.contains { $0.baselines[n] != nil })
+                        }
+                    }.labelsHidden().fixedSize()
                 }
-            }.pickerStyle(.radioGroup).labelsHidden()
+                LabeledField("Compare with") {
+                    Picker("", selection: Binding(get: { m.compareBaseline }, set: { v in m.setBaselines(show: m.showBaseline, compare: v); state.prefsVersion += 1 })) {
+                        Text("Don't compare").tag(-1)
+                        ForEach(0..<BASELINE_COUNT, id: \.self) { n in
+                            if n != m.showBaseline {
+                                Text(BASELINE_NAMES[n]).tag(n).disabled(!p.tasks.contains { $0.baselines[n] != nil })
+                            }
+                        }
+                    }.labelsHidden().fixedSize().disabled(m.showBaseline < 0)
+                }
+            }
+            Text("Comparing draws the second baseline as a teal bar under the first. The columns Compared Baseline Start and Finish and Baseline Start and Finish Shift (Columns in the toolbar), and the Baseline Changes report (Project ▸ Standard Reports), show what moved between the two.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
                 GridRow { Text("Baseline").bold(); Text("Tasks saved").bold(); Text("").gridCellColumns(3) }
                 ForEach(0..<BASELINE_COUNT, id: \.self) { n in

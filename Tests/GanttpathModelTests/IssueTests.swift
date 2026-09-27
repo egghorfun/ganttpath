@@ -100,3 +100,25 @@ import Testing
         #expect(m.log.first?.message == "m5")
     }
 }
+
+@MainActor
+@Suite struct BaselineSettingTests {
+    @Test func compareIsRememberedAndNeverTheSameBaseline() {
+        let (m, store, _) = makeModel()
+        m.setBaselines(show: 1, compare: 3)
+        #expect(m.showBaseline == 1 && m.compareBaseline == 3)
+        #expect(store.prefs.showBaseline == 1 && store.prefs.compareBaseline == 3)
+        #expect(m.ganttOptions.comparing == 3)
+        #expect(m.reportBaselines.base == 1 && m.reportBaselines.compare == 3)
+        m.setBaselines(show: 3, compare: 3) // showing the compared one: nothing left to compare with
+        #expect(m.compareBaseline == -1 && m.ganttOptions.comparing == nil)
+        m.setBaselines(show: -1, compare: 2) // no baseline shown: no comparison
+        #expect(m.compareBaseline == -1)
+        #expect(m.reportBaselines.base == 0)
+        // a new window reads the choice back
+        let (m2, _, _) = makeModel(tasks: false)
+        store.update { $0.showBaseline = 2; $0.compareBaseline = 5 }
+        m2.apply(prefs: store.prefs)
+        #expect(m2.showBaseline == 2 && m2.compareBaseline == 5)
+    }
+}

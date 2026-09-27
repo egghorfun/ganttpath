@@ -57,6 +57,7 @@ struct HFCtx {
     var statusStr: String
     var withLegend: Bool
     var showBaseline: Int
+    var compareBaseline: Int? = nil
     var pages: Int
     var pg: Int
 }
@@ -128,13 +129,15 @@ func hfGeometry(_ hf: HeaderFooter) -> HFGeometry {
 }
 
 /// Legend items (task colours, milestone, baseline) laid out from x at baseline y; returns the items and the width used.
-func legendItems(_ theme: Theme, _ x0: Double, _ y: Double, _ size: Double, _ color: RGBA, _ font: String, _ showBaseline: Int, _ m: TextMeasurer) -> [DrawItem] {
+func legendItems(_ theme: Theme, _ x0: Double, _ y: Double, _ size: Double, _ color: RGBA, _ font: String, _ showBaseline: Int, _ m: TextMeasurer,
+                 compare: Int? = nil) -> [DrawItem] {
     var items: [DrawItem] = []
     var x = x0
     let st = TextStyle(size: size, color: color, font: font)
     var entries: [(String, String)] = LEGEND
     entries.append(("ms", "Milestone"))
     if showBaseline >= 0 && showBaseline < BASELINE_NAMES.count { entries.append(("base", BASELINE_NAMES[showBaseline])) }
+    if let c = compare, c >= 0 && c < BASELINE_NAMES.count { entries.append(("base2", BASELINE_NAMES[c])) }
     for (k, label) in entries {
         let midY = y - size * 0.35
         switch k {
@@ -144,6 +147,8 @@ func legendItems(_ theme: Theme, _ x0: Double, _ y: Double, _ size: Double, _ co
             x += 12.8 + 4
         case "base":
             items.append(D.rect(x, midY - 2, 14, 4, fill: theme.c["baseline"], r: 2)); x += 18
+        case "base2":
+            items.append(D.rect(x, midY - 2, 14, 4, fill: theme.c["baseline2"], r: 2)); x += 18
         default:
             items.append(D.rect(x, midY - 4, 14, 8, fill: theme.c[k], r: 2)); x += 18
         }
@@ -196,8 +201,8 @@ func hfRow(_ sec: HFSection, _ c: HFCtx, x: Double, y top: Double, width: Double
                 let lx = anchor == .start ? bx : anchor == .middle ? bx + (boxW - w) / 2 : bx + boxW - w
                 items.append(.image(data, x: lx, y: y, w: w, h: h))
             case .legend:
-                let li = legendItems(theme, 0, 0, size, color, box.font, c.showBaseline, m)
-                let width = legendWidth(size, box.font, c.showBaseline, m, st)
+                let li = legendItems(theme, 0, 0, size, color, box.font, c.showBaseline, m, compare: c.compareBaseline)
+                let width = legendWidth(size, box.font, c.showBaseline, m, st, compare: c.compareBaseline)
                 let lx = anchor == .start ? bx : anchor == .middle ? bx + (boxW - width) / 2 : bx + boxW - width
                 items.append(.clip(x: bx, y: y, w: boxW, h: l.h, [.group(dx: lx, dy: y + (l.h - size) / 2 + size * 0.8, scale: 1, li)]))
             }
@@ -207,12 +212,13 @@ func hfRow(_ sec: HFSection, _ c: HFCtx, x: Double, y top: Double, width: Double
     return items
 }
 
-func legendWidth(_ size: Double, _ font: String, _ showBaseline: Int, _ m: TextMeasurer, _ st0: TextStyle) -> Double {
+func legendWidth(_ size: Double, _ font: String, _ showBaseline: Int, _ m: TextMeasurer, _ st0: TextStyle, compare: Int? = nil) -> Double {
     var st = st0; st.anchor = .start; st.size = size; st.font = font
     var w: Double = 0
     for (_, label) in LEGEND { w += 18 + m.width(label, st) + 14 }
     w += 16.8 + m.width("Milestone", st) + 14
     if showBaseline >= 0 && showBaseline < BASELINE_NAMES.count { w += 18 + m.width(BASELINE_NAMES[showBaseline], st) + 14 }
+    if let c = compare, c >= 0 && c < BASELINE_NAMES.count { w += 18 + m.width(BASELINE_NAMES[c], st) + 14 }
     return w - 14
 }
 
@@ -339,9 +345,9 @@ public func ganttPrintPages(_ p: Project, _ sc: ScheduleResult, _ ctx: PrintCont
     let opts = ctx.gantt
     var lo = parseISO(sc.projectStart) ?? parseISO(p.settings.startDate) ?? todayDn()
     var hi = sc.projectFinish != nil ? (parseISO(sc.projectFinish) ?? lo + 30) : lo + 30
-    if opts.showBaseline >= 0 {
+    for n in [opts.showBaseline, opts.comparing ?? -1] where n >= 0 {
         for t in p.tasks {
-            guard opts.showBaseline < t.baselines.count, let b = t.baselines[opts.showBaseline] else { continue }
+            guard n < t.baselines.count, let b = t.baselines[n] else { continue }
             if let s = parseISO(b.start), s < lo { lo = s }
             if let f = parseISO(b.finish), f > hi { hi = f }
         }
@@ -366,7 +372,7 @@ public func ganttPrintPages(_ p: Project, _ sc: ScheduleResult, _ ctx: PrintCont
     let (todayStr, stamp) = printStamps(ctx, fmt)
     let sd = parseISO(p.settings.statusDate)
     let hc = HFCtx(p: p, todayStr: todayStr, stamp: stamp, rangeStr: rangeText(sc, fmt), statusStr: sd != nil ? fmt.date(p.settings.statusDate) : "",
-                   withLegend: true, showBaseline: opts.showBaseline, pages: pages, pg: 0)
+                   withLegend: true, showBaseline: opts.showBaseline, compareBaseline: opts.comparing, pages: pages, pg: 0)
     var popts = opts
     popts.selected = []; popts.linkSel = nil
     popts.progressLine = opts.progressLine && sd != nil
@@ -507,6 +513,8 @@ public let REPORT_COLUMNS: [String: [(id: String, title: String)]] = [
     "late": [("id", "ID"), ("wbs", "WBS"), ("name", "Task Name"), ("finish", "Finish"), ("late", "Days Late"), ("pct", "% Complete")],
     "slipping": [("id", "ID"), ("wbs", "WBS"), ("name", "Task Name"), ("bfin", "Baseline Finish"), ("finish", "Finish"), ("slip", "Days Slipped"), ("pct", "% Complete")],
     "milestones": [("id", "ID"), ("name", "Milestone"), ("finish", "Date"), ("status", "Status")],
+    "baselines": [("id", "ID"), ("name", "Task Name"), ("bstart", "Baseline Start"), ("bfin", "Baseline Finish"), ("cstart", "Compared Start"),
+                  ("cfin", "Compared Finish"), ("sshift", "Start Shift"), ("fshift", "Finish Shift"), ("change", "Change")],
 ]
 
 public func reportCellText(_ col: String, _ rr: ReportRow, _ t: Task, _ fmt: Fmt) -> String {
@@ -524,14 +532,21 @@ public func reportCellText(_ col: String, _ rr: ReportRow, _ t: Task, _ fmt: Fmt
     case "bfin": return fmt.date(rr.baselineFinish)
     case "slip": return "\(rr.slipDays.map(String.init) ?? "undefined")d"
     case "status": return rr.milestoneStatus ?? ""
+    case "bstart": return fmt.date(rr.baseStart)
+    case "cstart": return fmt.date(rr.compareStart)
+    case "cfin": return fmt.date(rr.compareFinish)
+    case "sshift": return rr.startShift.map { ($0 > 0 ? "+" : "") + fmt.span($0) } ?? ""
+    case "fshift": return rr.finishShift.map { ($0 > 0 ? "+" : "") + fmt.span($0) } ?? ""
+    case "change": return rr.change ?? ""
     default: return ""
     }
 }
 
 /// One standard report, with its name and definition above the table on every page.
-public func reportPrintPages(_ key: String, _ p: Project, _ sc: ScheduleResult, _ ctx: PrintContext, baselineIndex: Int = 0, today: Int = todayDn()) -> [PrintedPage] {
+public func reportPrintPages(_ key: String, _ p: Project, _ sc: ScheduleResult, _ ctx: PrintContext, baselineIndex: Int = 0, compareIndex: Int = -1,
+                             today: Int = todayDn()) -> [PrintedPage] {
     guard let def = REPORT_DEFS.first(where: { $0.key == key }), let cols = REPORT_COLUMNS[key] else { return [] }
-    let list = reportRows(key, p, sc, baselineIndex: baselineIndex, today: today)
+    let list = reportRows(key, p, sc, baselineIndex: baselineIndex, compareIndex: compareIndex, today: today)
     if list.isEmpty { return [] }
     let theme = Theme.light
     let fr = PageFrame(p, ctx.page)

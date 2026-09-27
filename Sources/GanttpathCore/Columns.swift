@@ -64,14 +64,18 @@ public struct CellContext {
     public var fmt: Fmt
     /// Baseline chosen in the toolbar (-1 none).
     public var showBaseline: Int
+    /// A second baseline to compare with the shown one (-1 none).
+    public var compareBaseline: Int = -1
     /// Whether a sort, group, filter or search is active (a WBS edit needs the full outline).
     public var viewActive: Bool
     public var t: Task { project.tasks[index] }
     public var r: ScheduledTask { sched.tasks[index] }
     public var uid: Int { t.uid }
-    public init(project: Project, sched: ScheduleResult, index: Int, fmt: Fmt? = nil, showBaseline: Int = -1, viewActive: Bool = false) {
+    public init(project: Project, sched: ScheduleResult, index: Int, fmt: Fmt? = nil, showBaseline: Int = -1, viewActive: Bool = false,
+                compareBaseline: Int = -1) {
         self.project = project; self.sched = sched; self.index = index
         self.fmt = fmt ?? Fmt(project, sched); self.showBaseline = showBaseline; self.viewActive = viewActive
+        self.compareBaseline = compareBaseline
     }
 }
 
@@ -323,6 +327,19 @@ public func builtinColumns(_ project: Project, _ sched: ScheduleResult?) -> [Col
     C.append(ColumnDef(id: "finishVar", title: "Finish Variance", width: 100, align: .right,
                        text: { x in variance(x, bl(x), start: false).map { x.fmt.span($0) } ?? "" },
                        cls: { x in (variance(x, bl(x), start: false) ?? 0) > 0 ? "neg" : "" }))
+    // a second baseline compared with the shown one (Project > Baselines, or the toolbar's Baseline menu)
+    func cmp(_ x: CellContext) -> Baseline? {
+        let n = x.compareBaseline
+        return n >= 0 && n != baselineNo(x) && n < x.t.baselines.count ? x.t.baselines[n] : nil
+    }
+    C.append(ColumnDef(id: "cmpBaselineStart", title: "Compared Baseline Start", width: dateW + 30, isDate: true, text: { $0.fmt.date(cmp($0)?.start) }))
+    C.append(ColumnDef(id: "cmpBaselineFinish", title: "Compared Baseline Finish", width: dateW + 34, isDate: true, text: { $0.fmt.date(cmp($0)?.finish) }))
+    C.append(ColumnDef(id: "baselineStartShift", title: "Baseline Start Shift", width: 120, align: .right,
+                       text: { x in baselineShift(x, bl(x), cmp(x), start: true).map { x.fmt.span($0) } ?? "" },
+                       cls: { x in (baselineShift(x, bl(x), cmp(x), start: true) ?? 0) > 0 ? "neg" : "" }))
+    C.append(ColumnDef(id: "baselineFinishShift", title: "Baseline Finish Shift", width: 124, align: .right,
+                       text: { x in baselineShift(x, bl(x), cmp(x), start: false).map { x.fmt.span($0) } ?? "" },
+                       cls: { x in (baselineShift(x, bl(x), cmp(x), start: false) ?? 0) > 0 ? "neg" : "" }))
     // An inactive task is frozen: what shapes its dates cannot be edited until it is made active again.
     for k in C.indices where LOCKED_WHEN_INACTIVE.contains(C[k].id) {
         guard var e = C[k].edit else { continue }
@@ -341,6 +358,21 @@ func collapseWhitespace(_ s: String) -> String {
         else { out.unicodeScalars.append(u); inWs = false }
     }
     return out
+}
+
+/// A baseline start (or finish) as a tick in the task's calendar.
+func baselineTick(_ x: CellContext, _ b: Baseline, start: Bool) -> Int? {
+    let cal = calendarOf(x.project, x.t)
+    guard let st = parseStamp((start ? b.start : b.finish) ?? "") else { return nil }
+    if let m = st.min { return st.dn * 1440 + m }
+    return start ? cal.normStart(st.dn * 1440) : cal.normFinish((st.dn + 1) * 1440)
+}
+
+/// Working minutes from one baseline's start (or finish) to another's; positive = the compared baseline is later.
+public func baselineShift(_ x: CellContext, _ from: Baseline?, _ to: Baseline?, start: Bool) -> Int? {
+    guard let a = from, let b = to, let ta = baselineTick(x, a, start: start), let tb = baselineTick(x, b, start: start) else { return nil }
+    let cal = calendarOf(x.project, x.t)
+    return cal.posOf(tb) - cal.posOf(ta)
 }
 
 /// Working minutes between baseline and current start (or finish); positive = later than planned.

@@ -163,16 +163,26 @@ func obj(_ pairs: (String, JSON)...) -> JSONObject { JSONObject(pairs) }
         #expect(s.sched.tasks[1].finish == "2026-11-30")
     }
 
-    @Test func baselinesSixSlots() {
+    /// Baseline and Baseline 1 to 10, as in MS Project (the JavaScript app had Baseline 1 to 5).
+    @Test func baselinesElevenSlots() throws {
         let s = fresh()
         add(s, "A", 1, days: 4)
         s.run("BL") { p, sc in try setBaseline(&p, 0, sc) }
         s.run("BL5") { p, sc in try setBaseline(&p, 5, sc) }
         #expect(s.project.tasks[0].baselines[0] == Baseline(start: "2026-10-05", finish: "2026-10-08", duration: 4, dur: 1920))
-        #expect(s.project.tasks[0].baselines.count == 6)
+        #expect(s.project.tasks[0].baselines.count == 11)
+        #expect(BASELINE_NAMES.last == "Baseline 10" && BASELINE_NAMES.count == 11)
+        // a file keeps six slots, as the JavaScript app wrote them, until Baseline 6 to 10 are used
+        #expect(s.project.tasks[0].json["baselines"]?.array?.count == 6)
+        #expect(s.run("BL10") { p, sc in try setBaseline(&p, 10, sc) }.ok)
+        #expect(s.project.tasks[0].json["baselines"]?.array?.count == 11)
+        // and reads back the same
+        let back = try Project.from(json: s.project.json)
+        #expect(back.tasks[0].baselines == s.project.tasks[0].baselines)
         s.run("Clear") { p, _ in try clearBaseline(&p, 0) }
         #expect(s.project.tasks[0].baselines[0] == nil)
-        #expect(!s.run("Bad") { p, sc in try setBaseline(&p, 6, sc) }.ok)
+        let bad = s.run("Bad") { p, sc in try setBaseline(&p, 11, sc) }
+        #expect(!bad.ok && bad.error == "Baseline number must be 0 to 10")
     }
 
     @Test func undoRedo50StepsAndFailedEditsLeaveNoTrace() {

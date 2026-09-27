@@ -15,7 +15,8 @@ struct ReportsDialog: View {
     var body: some View {
         let m = state.model
         let def = REPORT_DEFS.first { $0.key == key }!
-        let rows = reportRows(key, m.project, m.sched, today: m.env.today())
+        let bl = m.reportBaselines
+        let rows = reportRows(key, m.project, m.sched, baselineIndex: bl.base, compareIndex: bl.compare, today: m.env.today())
         let cols = REPORT_COLUMNS[key] ?? []
         let fmt = m.fmt
         DialogFrame(title: "Standard Reports", width: 760) {
@@ -26,6 +27,11 @@ struct ReportsDialog: View {
             HStack {
                 KpiRow(items: [(String(rows.count), rows.count == 1 ? "task" : "tasks", false)])
                 if key == "slipping" && !hasAnyBaseline(m.project) { Text(" — no baseline has been saved for this project yet (Project ▸ Baselines…)").foregroundStyle(.secondary) }
+                if key == "slipping" && hasAnyBaseline(m.project) { Text(" — against \(BASELINE_NAMES[bl.base])").foregroundStyle(.secondary) }
+                if key == "baselines" {
+                    Text(bl.compare >= 0 ? " — \(BASELINE_NAMES[bl.base]) compared with \(BASELINE_NAMES[bl.compare])"
+                                         : " — choose a baseline to compare with under Project ▸ Baselines… or in the toolbar's baseline menu").foregroundStyle(.secondary)
+                }
             }
             if rows.isEmpty { Text("No tasks match this report right now.").foregroundStyle(.secondary) } else {
                 ScrollView {

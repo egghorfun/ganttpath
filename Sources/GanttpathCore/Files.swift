@@ -13,7 +13,7 @@ public let AUTOSAVE_DIR = "Autosaves"
 public let AUTOSAVE_KEEP = 20
 public let AUTOSAVE_INTERVAL: TimeInterval = 5 * 60
 public let FORMAT = "ganttpath"
-public let APP_VERSION = "1.4.0"
+public let APP_VERSION = "1.5.0"
 
 public struct FileError: Error, CustomStringConvertible, Equatable {
     public let description: String

@@ -55,16 +55,32 @@ func jsonDiff(_ a: JSON, _ b: JSON, _ path: String = "", _ out: inout [String], 
     @Test func randomEditingScriptsMatchTheJavaScriptApp() throws {
         let cases = try loadGolden("js136-ops.json.z")
         #expect(cases.count == 100)
-        var bad = 0, steps = 0
+        var bad = 0, steps = 0, dropped = 0
         for c in cases {
-            let got = try runOpsScript(c["input"]!)
+            // Ganttpath 1.4 has Baseline 6 to 10 (as MS Project); JavaScript 1.3.6 refused them ("must be 0 to 5") and changed
+            // nothing. Those steps are left out of both the script and the expected results; every other step must still match.
+            var input = c["input"]!.object!, expected = c["expected"]!.object!
+            var inSteps = input["steps"]!.array!, exSteps = expected["steps"]!.array!
+            for k in inSteps.indices.reversed() {
+                let op = inSteps[k]["op"]?.string ?? "", n = inSteps[k]["n"]?.number ?? 0
+                if (op == "setBaseline" || op == "clearBaseline") && n >= 6 && n <= 10 && exSteps[k]["error"]?.string == "Baseline number must be 0 to 5" {
+                    inSteps.remove(at: k); exSteps.remove(at: k); dropped += 1
+                }
+            }
+            // numbers that are wrong in both versions keep failing, with the new range in the message
+            for k in exSteps.indices where exSteps[k]["error"]?.string == "Baseline number must be 0 to 5" {
+                var o = exSteps[k].object!; o["error"] = .string("Baseline number must be 0 to 10"); exSteps[k] = .object(o)
+            }
+            input["steps"] = .array(inSteps); expected["steps"] = .array(exSteps)
+            let got = try runOpsScript(.object(input))
             steps += got["steps"]!.array!.count
             var diff: [String] = []
-            jsonDiff(c["expected"]!, got, "", &diff)
+            jsonDiff(.object(expected), got, "", &diff)
             if !diff.isEmpty { bad += 1; Issue.record("\(c["name"]!.string!): \(diff.prefix(5))") }
         }
         #expect(bad == 0)
-        #expect(steps >= 4000)
+        #expect(steps >= 3900)
+        #expect(dropped > 0 && dropped < 100, "\(dropped)")
     }
 
     @Test func msProjectXMLExportIsByteForByteTheSame() throws {

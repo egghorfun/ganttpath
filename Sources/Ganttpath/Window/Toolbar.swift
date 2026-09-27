@@ -321,9 +321,23 @@ struct BaselineSelect: View {
         Menu {
             Button("No baseline") { set(-1) }
             ForEach(0..<BASELINE_COUNT, id: \.self) { i in Button(BASELINE_NAMES[i]) { set(i) } }
+            Divider()
+            Menu("Compare with") {
+                Button("Don't compare") { m.setBaselines(show: m.showBaseline, compare: -1) }
+                Divider()
+                ForEach(0..<BASELINE_COUNT, id: \.self) { i in
+                    if i != m.showBaseline {
+                        Button(BASELINE_NAMES[i]) { m.setBaselines(show: m.showBaseline, compare: i) }
+                            .disabled(!m.project.tasks.contains { $0.baselines[i] != nil })
+                    }
+                }
+            }
+            .disabled(m.showBaseline < 0)
         } label: {
             HStack(spacing: 6) {
-                Text(m.showBaseline >= 0 ? BASELINE_NAMES[m.showBaseline] : "No baseline").font(.system(size: 13)).lineLimit(1).fixedSize()
+                Text(m.showBaseline < 0 ? "No baseline"
+                     : m.compareBaseline >= 0 ? "\(BASELINE_NAMES[m.showBaseline]) vs \(BASELINE_NAMES[m.compareBaseline])" : BASELINE_NAMES[m.showBaseline])
+                    .font(.system(size: 13)).lineLimit(1).fixedSize()
                 GPIcon(name: "chevron", size: 12)
             }
             .foregroundStyle(Color(nsColor: t.text.ns))
@@ -336,7 +350,7 @@ struct BaselineSelect: View {
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .fixedSize()
-        .help("Baseline shown under the bars")
+        .help("Baseline shown under the bars, and another baseline to compare it with")
     }
-    private func set(_ v: Int) { state.model.showBaseline = v; state.updatePrefs { $0.showBaseline = v } }
+    private func set(_ v: Int) { state.model.setBaselines(show: v, compare: state.model.compareBaseline); state.prefsVersion += 1 }
 }

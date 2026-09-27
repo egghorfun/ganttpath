@@ -5,7 +5,7 @@
 // Task shape:
 //   { uid, name, level, mode:'auto'|'manual', dur (working minutes), durUnit ('m'|'h'|'d'|'w'|'mo': the unit it is shown in),
 //     start, finish, milestone, constraint{type,date}, deadline,
-//     preds[{uid,type,lag{v,u}}], pct, actualStart, actualFinish, calendarId, weight, baselines[6], tags[], color,
+//     preds[{uid,type,lag{v,u}}], pct, actualStart, actualFinish, calendarId, weight, baselines[6 or 11], tags[], color,
 //     custom{}, notes, collapsed, ... }
 // Dates are 'YYYY-MM-DD' (a whole day) or 'YYYY-MM-DDTHH:MM' (a moment, used when a time matters).
 // Reading is forgiving in the same way as the JavaScript app's normalizeProject(); fields this version does not know are kept
@@ -397,7 +397,9 @@ extension Task {
         o["onTimeline"] = .bool(onTimeline)
         o["hideBar"] = .bool(hideBar)
         o["rollup"] = .bool(rollup)
-        o["baselines"] = .array(baselines.map { $0?.json ?? .null })
+        // six slots as the JavaScript app wrote them; all eleven once Baseline 6 to 10 are used
+        let used = (baselines.lastIndex { $0 != nil } ?? -1) + 1
+        o["baselines"] = .array(baselines.prefix(max(6, used)).map { $0?.json ?? .null })
         o["tags"] = .array(tags.map { .string($0) })
         o["color"] = JSON(color)
         o["custom"] = .object(custom)
