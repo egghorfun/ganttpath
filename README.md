@@ -27,7 +27,8 @@ Packaging/build-app.sh --mpxj mpxj/package/bin/mpxj-convert   # dist/Ganttpath.a
 ## Versions
 
 The version is `APP_VERSION` in `Sources/GanttpathCore/Files.swift`. It goes up with every change handed over: 1.4.0 is the first
-Swift version with direct `.mpp` opening. Every build also gets its own build number (the CI run number, or the date and time for a
+Swift version with direct `.mpp` opening; 1.5.0 adds elapsed durations, scheduling from the finish date, eleven baselines with
+baseline comparison, and custom columns in the MS Project XML export. Every build also gets its own build number (the CI run number, or the date and time for a
 local build). The number is shown in Ganttpath > About Ganttpath and is part of the zip name.
 
 ## MS Project files
@@ -35,10 +36,28 @@ local build). The number is shown in Ganttpath > About Ganttpath and is part of 
 - `.mpp` files are read by MPXJ (LGPL-2.1-or-later), the same reader the JavaScript app used: the native build in npm
   `@byteink/mppjs-darwin-arm64` 0.1.8, for Apple-silicon Macs. It is bundled inside the app as `Contents/Resources/bin/mpxj-convert`,
   with its licence and notices (`mpxj-LICENSE.txt`, `mpxj-NOTICE.txt`). It converts the file to MS Project XML, which Ganttpath imports.
-- What comes in: tasks and outline, durations, dates, links and lags, constraints, deadlines, % complete and actual dates, manual and
-  automatic scheduling, milestones, notes, calendars with their holidays (recurring ones too, as one exception per day), baselines,
-  status date, and custom fields (Text, Number, Flag, Date, Cost, Duration, Start, Finish, Outline Code) as custom columns. Resources,
-  assignments and costs are left out; the import report says what was left out.
+- What comes in: tasks and outline, durations (elapsed ones too), dates, links and lags, constraints, deadlines, % complete and actual
+  dates, manual and automatic scheduling, milestones, notes, calendars with their holidays (recurring ones too, as one exception per
+  day), Baseline and Baseline 1 to 10, status date, scheduling from the start or the finish date, and custom fields (Text, Number,
+  Flag, Date, Cost, Duration, Start, Finish, Outline Code) as custom columns. Resources, assignments and costs are left out; the
+  import report says what was left out.
+- What goes out to MS Project XML: the same, with custom columns as custom fields (Text1-30, Number1-20, Flag1-20, Date1-10, named by
+  the column as the field alias; fields that came from MS Project go back to the same field). Tags, custom bar colours and S-curve
+  weights have no place in MS Project XML and are not written.
+
+## MS Project scheduling rules added in 1.5
+
+- **Elapsed durations** (3ed, 12eh, 2ew, 1emo, 45em): the task runs round the clock, weekends and holidays included. An elapsed day
+  is 24 hours, a week 7 days, a month 30 days. Checked against MS Project with MPXJ's test file DurationTest9.mpp (all 15 tasks
+  get MS Project's dates). An elapsed task linked after another starts the moment its predecessor allows, even at 17:00 on a Friday,
+  and its slack counts round the clock too - MS Project's documented rule; no MS Project file with a linked elapsed task was
+  available to check this against.
+- **Schedule from the finish date** (Project > Project Settings > Schedule from): tasks are placed back from the finish date, new
+  automatic tasks are As Late As Possible, the start date is calculated, and As Soon As Possible tasks start with the project. MS
+  Project's test files only have finish-scheduled projects without tasks, so this follows Microsoft's description of the feature.
+- **Baselines**: Baseline and Baseline 1 to 10. Compare two of them from the toolbar's baseline menu (Compare with) or Project >
+  Baselines: a second (teal) bar, the columns Compared Baseline Start / Finish and Baseline Start / Finish Shift, and the Baseline
+  Changes report.
 - Known limit of that reader build: it cannot convert files that use custom-field lookup tables, value lists or graphical
   indicators (MPXJ's own test files: 105 of 116 convert). Ganttpath then says so; save such a file as XML in MS Project and open the XML.
 - Without the reader (a build without `--mpxj`), open MS Project files after saving them as XML in MS Project (File > Save As > XML).

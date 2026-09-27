@@ -294,6 +294,8 @@ struct SettingsDialog: View {
     @State private var hpd = ""
     @State private var hpw = ""
     @State private var dpm = ""
+    @State private var fromFinish = false
+    @State private var finish = ""
 
     var body: some View {
         let m = state.model
@@ -301,9 +303,23 @@ struct SettingsDialog: View {
         let avg = cal.map { jsNumberString(jsRound($0.avgDayMin / 60 * 100) / 100) } ?? "?"
         DialogFrame(title: "Project settings") {
             LabeledField("Project name") { TextField("", text: $name).textFieldStyle(.roundedBorder) }
+            LabeledField("Schedule from") {
+                Picker("", selection: $fromFinish) {
+                    Text("Project start date").tag(false)
+                    Text("Project finish date").tag(true)
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+            }
             HStack {
-                LabeledField("Project start date") { TextField("", text: $start).textFieldStyle(.roundedBorder) }
+                if fromFinish {
+                    LabeledField("Project finish date") { TextField("", text: $finish).textFieldStyle(.roundedBorder) }
+                } else {
+                    LabeledField("Project start date") { TextField("", text: $start).textFieldStyle(.roundedBorder) }
+                }
                 LabeledField("Status date") { TextField("Used by the progress line and S-curve", text: $status).textFieldStyle(.roundedBorder) }
+            }
+            if fromFinish {
+                Text("Tasks are placed back from the finish date and the start date is calculated (now \(m.fmt.date(m.sched.projectStart))), as in MS Project. New automatic tasks are As Late As Possible; tasks you already have keep their constraints.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 LabeledField("Date format") {
@@ -312,9 +328,11 @@ struct SettingsDialog: View {
                     }.labelsHidden()
                     .onChange(of: s.dateFormat) { _, nf in
                         // the date fields always show the format chosen here
-                        for field in [0, 1] {
-                            let txt = field == 0 ? start : status
-                            if let dn = parseDateInput(txt, prevFmt) { if field == 0 { start = formatDate(dn, nf) } else { status = formatDate(dn, nf) } }
+                        for field in [0, 1, 2] {
+                            let txt = field == 0 ? start : field == 1 ? status : finish
+                            if let dn = parseDateInput(txt, prevFmt) {
+                                if field == 0 { start = formatDate(dn, nf) } else if field == 1 { status = formatDate(dn, nf) } else { finish = formatDate(dn, nf) }
+                            }
                         }
                         prevFmt = nf
                     }
@@ -351,6 +369,8 @@ struct SettingsDialog: View {
             name = m.project.name
             start = m.fmt.datePlain(s.startDate)
             status = m.fmt.datePlain(s.statusDate)
+            fromFinish = s.scheduleFromFinish
+            finish = m.fmt.datePlain(s.finishDate ?? m.sched.projectFinish)
             prevFmt = s.dateFormat
             crit = jsNumberString(s.criticalSlackDays); near = jsNumberString(s.nearCriticalDays)
             hpd = jsNumberString(s.hoursPerDay); hpw = jsNumberString(s.hoursPerWeek); dpm = jsNumberString(s.daysPerMonth)
@@ -362,6 +382,9 @@ struct SettingsDialog: View {
         guard let sd = parseDateInput(start, s.dateFormat) else { m.say("Project start date is not a valid date.", .error); return }
         let st = jsTrim(status).isEmpty ? nil : parseDateInput(status, s.dateFormat)
         if !jsTrim(status).isEmpty && st == nil { m.say("Status date is not a valid date.", .error); return }
+        let fd = parseDateInput(finish, s.dateFormat)
+        if fromFinish && fd == nil { m.say("Project finish date is not a valid date.", .error); return }
+        let ff = fromFinish, fdIso = fd.map(toISO)
         let patch = JSONObject([
             ("startDate", .string(toISO(sd))), ("statusDate", st.map { .string(toISO($0)) } ?? .null), ("dateFormat", .string(s.dateFormat)),
             ("honorConstraints", .bool(s.honorConstraints)), ("criticalSlackDays", .string(crit)), ("nearCriticalDays", .string(near)),
@@ -373,6 +396,7 @@ struct SettingsDialog: View {
         let r = m.run("Project settings") { d, _ in
             if !nm.isEmpty { d.name = nm }
             try updateSettings(&d, patch)
+            try setScheduleFrom(&d, finish: ff, finishDate: fdIso)
         }
         if r.ok {
             let f = s.dateFormat

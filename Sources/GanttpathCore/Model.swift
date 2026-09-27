@@ -92,8 +92,19 @@ public func blankTask(_ p: inout Project, level: Int = 1, name: String = "New ta
     t.level = level
     t.mode = p.settings.newTasksAuto == false ? "manual" : "auto"
     t.dur = dur ?? jsRoundInt((durationDays ?? 1) * Double(dayMinOf(p.settings)))
+    // scheduled from the finish date: a new task is As Late As Possible (MS Project)
+    if p.settings.scheduleFromFinish { t.constraint = Constraint(type: "ALAP", date: nil) }
     configure(&t)
     return t
+}
+
+/// Schedule the project from its start date, or from a finish date (MS Project's Project Information > Schedule from). Existing
+/// tasks keep their constraints, as in MS Project; new automatic tasks are As Late As Possible while scheduling from the finish.
+public func setScheduleFrom(_ p: inout Project, finish: Bool, finishDate: String? = nil) throws {
+    if !finish { p.settings.scheduleFromFinish = false; p.settings.finishDate = nil; return }
+    guard let f = finishDate, let st = parseStamp(f) else { throw ModelError("Enter the project finish date") }
+    p.settings.scheduleFromFinish = true
+    p.settings.finishDate = toStamp(st.dn, st.min)
 }
 
 public let TASK_TYPES = ["fixedUnits", "fixedDuration", "fixedWork"]

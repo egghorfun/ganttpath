@@ -304,8 +304,13 @@ public func schedule(_ project: Project) -> ScheduleResult {
     let isManual = (0..<n).map { !isSummary[$0] && (T[$0].mode == "manual" || inactive[$0]) }
     // (`!!parseISO(x)` in the JavaScript app: day 0, 1970-01-01, counts as no date)
     let isDone = (0..<n).map { !isSummary[$0] && (T[$0].pct >= 100 || (parseISO(T[$0].actualFinish) ?? 0) != 0) }
-    let projStartSt = parseStamp(settings.startDate) ?? parseStamp(T.first(where: { !($0.start ?? "").isEmpty })?.start) ?? Stamp(dn: 0, min: nil)
-    let projStartDn = projStartSt.dn
+    var projStartSt = parseStamp(settings.startDate) ?? parseStamp(T.first(where: { !($0.start ?? "").isEmpty })?.start) ?? Stamp(dn: 0, min: nil)
+    var projStartDn = projStartSt.dn
+    // Scheduled from the finish date (MS Project): the project finish is fixed - the end of that working day, or the time given -
+    // and the project start is calculated back from it (see after the first backward pass).
+    let fixedFinishTick: Int? = settings.scheduleFromFinish ? parseStamp(settings.finishDate).map { st in
+        projCal.normFinish(st.min == nil ? (st.dn + 1) * DAY_MIN : st.dn * DAY_MIN + st.min!)
+    } : nil
     var pinned: [Int: Int] = [:] // ALAP pinning: index -> start tick
 
     // per-task parsed constraint/deadline/actuals (parsed once)
@@ -412,6 +417,7 @@ public func schedule(_ project: Project) -> ScheduleResult {
         var projFinishTick = Int.min
         for i in 0..<n where !isSummary[i] && !inactive[i] { if let f = fT[i], f > projFinishTick { projFinishTick = f } }
         if projFinishTick == Int.min { projFinishTick = projStartSt.dn * DAY_MIN + (projStartSt.min ?? 0) }
+        if let fixed = fixedFinishTick { projFinishTick = fixed }
         lfT = [Int?](repeating: nil, count: n); lsT = [Int?](repeating: nil, count: n)
         for k in stride(from: order.count - 1, through: 0, by: -1) {
             let i = order[k]
@@ -472,6 +478,19 @@ public func schedule(_ project: Project) -> ScheduleResult {
         }
     }
     backward()
+
+    // Scheduling from the finish: the project starts at the earliest late start, so the tasks that drive the finish have no slack;
+    // then the early dates are worked out from that start (an As Soon As Possible task starts as early as the project allows).
+    if let fixed = fixedFinishTick {
+        var lo = Int.max
+        for i in 0..<n where !isSummary[i] && !inactive[i] { if let v = lsT[i], v < lo { lo = v } }
+        let startTick = lo == Int.max ? fixed : lo
+        let dn = floorDiv(startTick, DAY_MIN)
+        projStartSt = Stamp(dn: dn, min: startTick - dn * DAY_MIN)
+        projStartDn = dn
+        forward()
+        backward()
+    }
 
     // ALAP: pin as-late-as-possible tasks to their late start, then recompute
     var alap: [Int] = []
@@ -685,6 +704,8 @@ public func schedule(_ project: Project) -> ScheduleResult {
         if let st = r.start, let d = parseISO(st) { if ps == nil || d < ps! { ps = d } }
         if let fn = r.finish, let d = parseISO(fn) { if pf == nil || d > pf! { pf = d } }
     }
+    // scheduled from the finish: the project finishes on its finish date even when every task could end sooner
+    if let fixed = fixedFinishTick { let d = floorDiv(fixed - 1, DAY_MIN); if pf == nil || d > pf! { pf = d }; if ps == nil { ps = floorDiv(projStartSt.dn * DAY_MIN, DAY_MIN) } }
     return ScheduleResult(
         tasks: rows, projectStart: ps.map(toISO), projectFinish: pf.map(toISO), conflicts: conflicts, conflictCount: conflicts.count,
         links: links, cycles: cycleNodes.map { T[$0].uid }, calendarInvalid: calOrder.contains { $0.invalid },

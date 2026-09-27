@@ -162,6 +162,11 @@ public struct Settings: Equatable, Sendable {
     public var statusDate: String? = nil
     public var dateFormat: String = "DD-MMM-YYYY"
     public var honorConstraints: Bool = true
+    /// Schedule from the project finish date (MS Project's "Schedule from: Project Finish Date"): tasks are placed back from
+    /// `finishDate`, new automatic tasks are As Late As Possible, and the project start is calculated.
+    public var scheduleFromFinish: Bool = false
+    /// The project finish date when scheduling from the finish ('YYYY-MM-DD', or with a time).
+    public var finishDate: String? = nil
     public var criticalSlackDays: Double = 0
     public var nearCriticalDays: Double = 2
     public var newTasksAuto: Bool = true
@@ -430,7 +435,8 @@ extension HeaderFooter {
 
 private let settingsKeys: Set<String> = ["startDate", "statusDate", "dateFormat", "honorConstraints", "criticalSlackDays", "nearCriticalDays",
                                          "newTasksAuto", "country", "defaultCalendarId", "weekStartsMonday", "pickerStartsSunday", "showWeekday",
-                                         "hoursPerDay", "hoursPerWeek", "daysPerMonth", "documentNumber", "logoDataUrl", "headerFooter"]
+                                         "hoursPerDay", "hoursPerWeek", "daysPerMonth", "documentNumber", "logoDataUrl", "headerFooter",
+                                         "scheduleFrom", "finishDate"]
 
 extension Settings {
     /// `{ ...defaultSettings(start), ...fileSettings }`, then the checks normalizeProject() makes.
@@ -442,6 +448,7 @@ extension Settings {
         if o.has("statusDate") { s.statusDate = str(o["statusDate"]).flatMap { $0.isEmpty ? nil : $0 } }
         if let v = str(o["dateFormat"]) { s.dateFormat = v }
         if let v = o["honorConstraints"] { s.honorConstraints = v != .bool(false) }
+        if str(o["scheduleFrom"]) == "finish", let f = str(o["finishDate"]), parseStamp(f) != nil { s.scheduleFromFinish = true; s.finishDate = f }
         if let v = o["criticalSlackDays"]?.number, v.isFinite { s.criticalSlackDays = v }
         if let v = o["nearCriticalDays"]?.number, v.isFinite { s.nearCriticalDays = v }
         if let v = o["newTasksAuto"] { s.newTasksAuto = v != .bool(false) }
@@ -469,6 +476,7 @@ extension Settings {
         o["statusDate"] = JSON(statusDate)
         o["dateFormat"] = .string(dateFormat)
         o["honorConstraints"] = .bool(honorConstraints)
+        if scheduleFromFinish, let f = finishDate { o["scheduleFrom"] = .string("finish"); o["finishDate"] = .string(f) }
         o["criticalSlackDays"] = .number(criticalSlackDays)
         o["nearCriticalDays"] = .number(nearCriticalDays)
         o["newTasksAuto"] = .bool(newTasksAuto)

@@ -151,9 +151,10 @@ public func exportMSPDI(_ project: Project, _ sched: ScheduleResult, now: Date =
     put("SaveVersion", 14)
     put("Name", "\(project.name.isEmpty ? "Project" : project.name).xml")
     put("Title", project.name.isEmpty ? "Project" : project.name)
-    put("ScheduleFromStart", 1)
-    put("StartDate", stampXml(projStart, dayStartT))
-    put("FinishDate", stampXml(projFinish, dayEndT))
+    let fromFinish = S.scheduleFromFinish && parseStamp(S.finishDate) != nil
+    put("ScheduleFromStart", fromFinish ? 0 : 1)
+    put("StartDate", stampXml(fromFinish ? (sched.projectStart ?? projStart) : projStart, dayStartT))
+    put("FinishDate", stampXml(fromFinish ? S.finishDate : projFinish, dayEndT))
     put("FYStartDate", 1)
     put("CriticalSlackLimit", jsNumberString(jsRound(S.criticalSlackDays)))
     put("CurrencyDigits", 2)
@@ -645,7 +646,15 @@ public func importMSPDI(_ xmlText: String, fileName: String = "Imported project"
     project.settings.statusDate = dateOnly(root.kidText("StatusDate"))
     project.settings.honorConstraints = root.kidText("HonorConstraints") != "0"
     project.settings.criticalSlackDays = max(0, xnum(root.kidText("CriticalSlackLimit"), 0)!)
-    if root.kidText("ScheduleFromStart") == "0" { note("warn", "This project is scheduled from its finish date in MS Project. Ganttpath always schedules from the start date.") }
+    if root.kidText("ScheduleFromStart") == "0" {
+        if let fin = stampOf(root.kidText("FinishDate")) {
+            project.settings.scheduleFromFinish = true
+            project.settings.finishDate = fin
+            note("info", "This project is scheduled from its finish date, as in MS Project: tasks are placed back from \(fin.prefix(10)) and the start date is calculated.")
+        } else {
+            note("warn", "This project is scheduled from its finish date in MS Project, but the file has no finish date; it is scheduled from its start date here.")
+        }
+    }
 
     // ---- tasks
     struct Row { var task: Task; var name: String; var fileStart: String?; var fileFinish: String?; var isSummary: Bool; var isManual: Bool }
