@@ -73,7 +73,23 @@ enum SmokeTest {
             ("narrow-toolbar", { resize(900) }),
             ("wide-toolbar", { resize(1700) }),
             ("restore-width", { if let f = savedFrame { mainWindow()?.setFrame(f, display: true) } }),
-            ("network", { m.conflictsOpen = false; m.tab = .network }),
+            ("baseline-compare", {
+                // Baseline 1, then a longer first task, then Baseline 3; show Baseline 1 and compare it with Baseline 3
+                m.conflictsOpen = false; m.tab = .gantt
+                m.setBaseline(1, selectedOnly: false)
+                if let i = m.project.tasks.indices.first(where: { !m.sched.tasks[$0].isSummary }) {
+                    let uid = m.project.tasks[i].uid, d = m.project.tasks[i].dur
+                    _ = m.run("Longer") { p, _ in try setDuration(&p, uid, DurationSpec(min: d + 2 * 480, unit: "d")) }
+                }
+                m.setBaseline(3, selectedOnly: false)
+                m.setBaselines(show: 1, compare: 3)
+            }),
+            ("finish-schedule", {
+                m.setBaselines(show: -1, compare: -1)
+                let fin = toISO((parseISO(m.sched.projectFinish) ?? 0) + 14)
+                _ = m.run("Schedule from finish") { p, _ in try setScheduleFrom(&p, finish: true, finishDate: fin) }
+            }),
+            ("network", { m.undo(); m.conflictsOpen = false; m.tab = .network }),
             ("timeline", { m.tab = .timeline }),
             ("cpm", { m.tab = .cpm }),
             ("scurve", { m.tab = .scurve }),
@@ -160,6 +176,16 @@ enum SmokeTest {
                     }
                 }
                 if ["narrow-toolbar", "wide-toolbar", "restore-width"].contains(steps[i].0) { toolbarCheck(steps[i].0) }
+                if steps[i].0 == "baseline-compare" {
+                    let rows = reportRows("baselines", m.project, m.sched, baselineIndex: 1, compareIndex: 3)
+                    log("comparing \(BASELINE_NAMES[m.showBaseline]) with \(BASELINE_NAMES[m.compareBaseline]): Baseline Changes report rows \(rows.count), first \(rows.first.map { "\(m.project.tasks[$0.row.index].name) \($0.change ?? "")" } ?? "-")")
+                }
+                if steps[i].0 == "finish-schedule" {
+                    log("scheduled from the finish \(m.project.settings.finishDate ?? "-"): project \(m.sched.projectStart ?? "-") to \(m.sched.projectFinish ?? "-"), conflicts \(m.sched.conflictCount)")
+                }
+                if steps[i].0 == "network" {
+                    log("after undo: scheduled from the finish \(m.project.settings.scheduleFromFinish), project \(m.sched.projectStart ?? "-") to \(m.sched.projectFinish ?? "-")")
+                }
                 if steps[i].0 == "error-box" {
                     log("error box showing: \(state.errorAlert != nil), as a sheet: \(state.errorAlert?.window.sheetParent != nil), no fading toast: \(m.toast == nil), in log: \(m.log.last?.kind == .error)")
                 }
@@ -188,7 +214,7 @@ enum SmokeTest {
         }
         let t = state.theme
         let bg0 = (px[0], px[1], px[2])
-        var other = 0, task = 0, crit = 0, conflict = 0
+        var other = 0, task = 0, crit = 0, conflict = 0, base2 = 0
         var colours = Set<UInt32>()
         var i = 0
         while i < w * h * 4 {
@@ -196,10 +222,11 @@ enum SmokeTest {
             if let c = t.c["task"], near(i, c) { task += 1 }
             if let c = t.c["critical"], near(i, c) { crit += 1 }
             if let c = t.c["conflict"], near(i, c) { conflict += 1 }
+            if let c = t.c["baseline2"], near(i, c) { base2 += 1 }
             if i % 64 == 0 { colours.insert(UInt32(px[i]) << 16 | UInt32(px[i + 1]) << 8 | UInt32(px[i + 2])) }
             i += 4
         }
-        return "\(w)x\(h), corner pixel \(bg0.0),\(bg0.1),\(bg0.2), not background \(other * 100 / max(1, w * h))%, colours \(colours.count), task-colour px \(task), critical px \(crit), conflict px \(conflict)"
+        return "\(w)x\(h), corner pixel \(bg0.0),\(bg0.1),\(bg0.2), not background \(other * 100 / max(1, w * h))%, colours \(colours.count), task-colour px \(task), critical px \(crit), conflict px \(conflict), compared-baseline px \(base2)"
     }
 
     /// Nothing of the chart may be drawn over the task table: the table's heading and first rows must look the same before and
